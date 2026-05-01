@@ -30,9 +30,11 @@ uv run mypy jobassist/ # type-check
 
 ```
 jobassist/
-  schemas.py     # JobQuery, JobPosting, ScoredPosting
-  cli.py         # typer CLI entry point
-  sources/       # one file per job source
+  schemas.py        # JobQuery, JobPosting, ScoredPosting, posting_hash
+  cli.py            # typer CLI entry point
+  sources/
+    base.py         # Source protocol
 tests/
   test_schemas.py
+  test_source_protocol.py
 ```
