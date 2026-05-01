@@ -34,7 +34,13 @@ jobassist/
   cli.py            # typer CLI entry point
   sources/
     base.py         # Source protocol
+    greenhouse.py   # Greenhouse ATS fetcher
+    lever.py        # Lever ATS fetcher
 tests/
+  fixtures/
+    greenhouse_acme.json
+    lever_acme.json
   test_schemas.py
   test_source_protocol.py
+  test_ats_fetchers.py
 ```

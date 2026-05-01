@@ -1,0 +1,24 @@
+[
+  {
+    "id": "abc-001",
+    "text": "Software Engineer",
+    "categories": {
+      "location": "London, UK",
+      "commitment": "Full-time"
+    },
+    "hostedUrl": "https://jobs.lever.co/acme/abc-001",
+    "createdAt": 1705312800000,
+    "descriptionPlain": "Build great things at Acme."
+  },
+  {
+    "id": "abc-002",
+    "text": "Product Manager",
+    "categories": {
+      "location": "London, UK",
+      "commitment": "Full-time"
+    },
+    "hostedUrl": "https://jobs.lever.co/acme/abc-002",
+    "createdAt": 1705226400000,
+    "descriptionPlain": "Drive product at Acme."
+  }
+]
