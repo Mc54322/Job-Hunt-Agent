@@ -30,13 +30,9 @@ uv run mypy jobassist/ # type-check
 
 ```
 jobassist/
-  schemas.py     # JobQuery, JobPosting, ScoredPosting (Tasks 1–2)
-  cli.py         # typer CLI entry point (Task 1)
-  sources/       # one file per job source (Tasks 3+)
+  schemas.py     # JobQuery, JobPosting, ScoredPosting
+  cli.py         # typer CLI entry point
+  sources/       # one file per job source
 tests/
   test_schemas.py
 ```
-
-## Status
-
-Task 1 complete — schema + CLI scaffold. See `CLAUDE.md` for the full task list and current progress.
