@@ -15,6 +15,7 @@ from rich.table import Table
 
 from jobassist.aliases import AliasGenerator
 from jobassist.dedupe import deduplicate
+from jobassist.index import KNOWN_INDICES, companies_for_index
 from jobassist.report import generate_report
 from jobassist.schemas import JobPosting, JobQuery, ScoredPosting
 from jobassist.scorer import ScoringPipeline
@@ -149,6 +150,14 @@ def search(
         "--report",
         help="Write a Markdown report to this path.",
     ),
+    index: Optional[str] = typer.Option(
+        None,
+        "--index",
+        help=(
+            f"Expand companies from a stock index. "
+            f"Available: {', '.join(sorted(KNOWN_INDICES))}"
+        ),
+    ),
     aliases: bool = typer.Option(
         True,
         "--aliases/--no-aliases",
@@ -171,11 +180,20 @@ def search(
     adzuna_id = os.environ.get("ADZUNA_APP_ID")
     adzuna_key = os.environ.get("ADZUNA_APP_KEY")
 
+    # Resolve companies: explicit --company flags + optional --index expansion
+    resolved_companies: list[str] = list(company or [])
+    if index is not None:
+        try:
+            resolved_companies.extend(companies_for_index(index))
+        except ValueError as exc:
+            _console.print(f"[red]Error:[/red] {exc}")
+            raise typer.Exit(1)
+
     query = JobQuery(
         role=role,
         job_type=job_type,
         location=location,
-        companies=company or [],
+        companies=resolved_companies,
         max_results=max_results,
     )
 

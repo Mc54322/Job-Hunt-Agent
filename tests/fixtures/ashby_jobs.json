@@ -1,0 +1,24 @@
+{
+  "jobPostings": [
+    {
+      "id": "abc-001",
+      "title": "Software Engineer",
+      "teamName": "Engineering",
+      "locationName": "London, UK",
+      "isRemote": false,
+      "applyUrl": "https://jobs.ashbyhq.com/acme/abc-001/application",
+      "descriptionPlain": "We are looking for a talented Software Engineer to join our team.",
+      "publishedDate": "2025-01-15T00:00:00.000Z"
+    },
+    {
+      "id": "abc-002",
+      "title": "Data Analyst",
+      "teamName": "Data",
+      "locationName": "Remote",
+      "isRemote": true,
+      "applyUrl": "https://jobs.ashbyhq.com/acme/abc-002/application",
+      "descriptionPlain": "Join our data team and help us make sense of our data.",
+      "publishedDate": "2025-01-10T00:00:00.000Z"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "totalFound": 2,
+  "content": [
+    {
+      "id": "sr-001",
+      "name": "Software Engineer",
+      "company": {"identifier": "Acme", "name": "Acme Corp"},
+      "location": {"city": "London", "country": "United Kingdom", "countryCode": "GB"},
+      "ref": "https://jobs.smartrecruiters.com/Acme/sr-001-software-engineer",
+      "releasedDate": "2025-01-15T10:00:00+0000",
+      "customField": []
+    },
+    {
+      "id": "sr-002",
+      "name": "Backend Developer",
+      "company": {"identifier": "Acme", "name": "Acme Corp"},
+      "location": {"city": "Manchester", "country": "United Kingdom", "countryCode": "GB"},
+      "ref": "https://jobs.smartrecruiters.com/Acme/sr-002-backend-developer",
+      "releasedDate": "2025-01-10T10:00:00+0000",
+      "customField": []
+    }
+  ]
+}

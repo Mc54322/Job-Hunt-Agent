@@ -1,0 +1,24 @@
+{
+  "result": [
+    {
+      "id": "1234",
+      "jobOpeningName": "Software Engineer",
+      "departmentLabel": "Engineering",
+      "locationLabel": "London, UK",
+      "employmentStatusLabel": "Full-Time",
+      "jobOpeningStatus": "Open",
+      "minimumSalary": null,
+      "maximumSalary": null
+    },
+    {
+      "id": "1235",
+      "jobOpeningName": "Senior Data Analyst",
+      "departmentLabel": "Data",
+      "locationLabel": "Remote",
+      "employmentStatusLabel": "Full-Time",
+      "jobOpeningStatus": "Open",
+      "minimumSalary": 55000,
+      "maximumSalary": 75000
+    }
+  ]
+}
