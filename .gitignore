@@ -1,2 +1,16 @@
 CLAUDE.md
 EXPLANATIONS.md
+
+# environment
+.env
+.venv/
+
+# python
+__pycache__/
+*.pyc
+*.egg-info/
+
+# tools
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/

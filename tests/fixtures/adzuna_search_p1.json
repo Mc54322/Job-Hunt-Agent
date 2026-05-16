@@ -1,0 +1,27 @@
+{
+  "count": 3,
+  "results": [
+    {
+      "id": "adzuna-001",
+      "title": "Software Engineer",
+      "company": {"display_name": "TechCorp Ltd"},
+      "location": {"display_name": "London"},
+      "redirect_url": "https://www.adzuna.co.uk/jobs/details/adzuna-001",
+      "created": "2024-01-15T10:00:00Z",
+      "description": "We are looking for a Software Engineer to join our team.",
+      "salary_min": 50000.0,
+      "salary_max": 70000.0
+    },
+    {
+      "id": "adzuna-002",
+      "title": "Senior Software Engineer",
+      "company": {"display_name": "FinTech Co"},
+      "location": {"display_name": "Manchester"},
+      "redirect_url": "https://www.adzuna.co.uk/jobs/details/adzuna-002",
+      "created": "2024-01-14T09:00:00Z",
+      "description": "Senior role for an experienced engineer.",
+      "salary_min": 70000.0,
+      "salary_max": 90000.0
+    }
+  ]
+}

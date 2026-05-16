@@ -36,11 +36,15 @@ jobassist/
     base.py         # Source protocol
     greenhouse.py   # Greenhouse ATS fetcher
     lever.py        # Lever ATS fetcher
+    adzuna.py       # Adzuna aggregator fetcher (UK)
 tests/
   fixtures/
     greenhouse_acme.json
     lever_acme.json
+    adzuna_search_p1.json
+    adzuna_search_p2.json
   test_schemas.py
   test_source_protocol.py
   test_ats_fetchers.py
+  test_adzuna.py
 ```
