@@ -32,6 +32,7 @@ uv run mypy jobassist/ # type-check
 jobassist/
   schemas.py        # JobQuery, JobPosting, ScoredPosting, posting_hash
   cli.py            # typer CLI entry point
+  dedupe.py         # deduplication — ATS-direct beats aggregator
   sources/
     base.py         # Source protocol
     greenhouse.py   # Greenhouse ATS fetcher
@@ -47,4 +48,5 @@ tests/
   test_source_protocol.py
   test_ats_fetchers.py
   test_adzuna.py
+  test_dedupe.py
 ```
