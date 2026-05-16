@@ -31,8 +31,10 @@ uv run mypy jobassist/ # type-check
 ```
 jobassist/
   schemas.py        # JobQuery, JobPosting, ScoredPosting, posting_hash
-  cli.py            # typer CLI entry point
+  cli.py            # typer CLI — wires sources, dedupe, scorer, rich table
   dedupe.py         # deduplication — ATS-direct beats aggregator
+  scorer.py         # LLM scoring pipeline with prompt caching (Claude)
+  store.py          # SQLite store for postings + LLM/HTTP response cache
   sources/
     base.py         # Source protocol
     greenhouse.py   # Greenhouse ATS fetcher
@@ -49,4 +51,7 @@ tests/
   test_ats_fetchers.py
   test_adzuna.py
   test_dedupe.py
+  test_store.py
+  test_scorer.py
+  test_cli.py
 ```

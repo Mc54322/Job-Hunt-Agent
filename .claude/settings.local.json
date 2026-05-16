@@ -6,7 +6,10 @@
       "Bash(sh)",
       "Bash(export PATH=\"$HOME/.local/bin:$PATH\")",
       "Bash(uv add *)",
-      "Bash(uv run *)"
+      "Bash(uv run *)",
+      "Skill(claude-api)",
+      "Skill(claude-api:*)",
+      "Bash(export PATH=\"$HOME/.cargo/bin:$HOME/.local/bin:$PATH\")"
     ]
   }
 }
