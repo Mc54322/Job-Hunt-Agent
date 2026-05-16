@@ -36,16 +36,22 @@ jobassist/
   scorer.py         # LLM scoring pipeline with prompt caching (Claude)
   store.py          # SQLite store for postings + LLM/HTTP response cache
   sources/
-    base.py         # Source protocol
-    greenhouse.py   # Greenhouse ATS fetcher
-    lever.py        # Lever ATS fetcher
-    adzuna.py       # Adzuna aggregator fetcher (UK)
+    base.py            # Source protocol
+    detector.py        # ATS detector — URL/HTML → ATS type
+    greenhouse.py      # Greenhouse ATS fetcher
+    lever.py           # Lever ATS fetcher
+    workday.py         # Workday ATS fetcher
+    adzuna.py          # Adzuna aggregator fetcher (UK)
+    reed.py            # Reed UK job board fetcher
+    company_page.py    # Generic company-page fetcher (httpx + trafilatura + Playwright)
 tests/
   fixtures/
     greenhouse_acme.json
     lever_acme.json
     adzuna_search_p1.json
     adzuna_search_p2.json
+    workday_jobs.json
+    reed_search.json
   test_schemas.py
   test_source_protocol.py
   test_ats_fetchers.py
@@ -54,4 +60,8 @@ tests/
   test_store.py
   test_scorer.py
   test_cli.py
+  test_detector.py
+  test_workday.py
+  test_reed.py
+  test_company_page.py
 ```

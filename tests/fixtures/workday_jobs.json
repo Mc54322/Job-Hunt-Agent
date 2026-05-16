@@ -1,0 +1,26 @@
+{
+  "total": 3,
+  "jobPostings": [
+    {
+      "title": "Software Engineer",
+      "externalPath": "/en-US/External/job/London/Software-Engineer_JR12345",
+      "locationsText": "London, United Kingdom",
+      "postedOn": "Posted 5 Days Ago",
+      "bulletFields": []
+    },
+    {
+      "title": "Senior Software Engineer",
+      "externalPath": "/en-US/External/job/Manchester/Senior-Software-Engineer_JR12346",
+      "locationsText": "Manchester, United Kingdom",
+      "postedOn": "Posted Today",
+      "bulletFields": []
+    },
+    {
+      "title": "Data Analyst",
+      "externalPath": "/en-US/External/job/London/Data-Analyst_JR12347",
+      "locationsText": "London, United Kingdom",
+      "postedOn": "Posted 30+ Days Ago",
+      "bulletFields": []
+    }
+  ]
+}

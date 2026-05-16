@@ -8,7 +8,7 @@ from jobassist.schemas import JobPosting
 
 # Sources that fetch directly from an ATS — higher priority than aggregators.
 # Extend this set as new ATS fetchers are added.
-ATS_SOURCES: frozenset[str] = frozenset({"greenhouse", "lever"})
+ATS_SOURCES: frozenset[str] = frozenset({"greenhouse", "lever", "workday"})
 
 
 def _is_ats(source: str) -> bool:
