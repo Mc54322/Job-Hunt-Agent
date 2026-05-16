@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
-from typing import AsyncIterator
+from typing import AsyncIterator, Protocol, runtime_checkable
 
 import httpx
 import trafilatura
 
 from jobassist.schemas import JobPosting, JobQuery
+
+
+@runtime_checkable
+class _Extractor(Protocol):
+    async def extract(self, company: str, page_url: str, text: str) -> list[JobPosting]: ...
 
 _USER_AGENT = "JobAssist/0.1 (personal job search; https://github.com/job-hunt-agent)"
 _MIN_CONTENT_CHARS = 200
@@ -80,10 +85,10 @@ def _extract(html: str) -> str:
 
 
 class CompanyPageFetcher:
-    """Fetches raw text from a company careers page for later LLM extraction.
+    """Fetches and extracts job postings from a company careers page.
 
-    The ``search`` method yields nothing until an LLM extractor is wired in
-    (Task 13).  Use ``fetch_content`` directly to obtain the page text.
+    Pass a ``PageExtractor`` instance via *extractor* to activate LLM extraction.
+    Without it, ``search`` yields nothing (useful for fetch-only workflows).
     """
 
     def __init__(
@@ -92,11 +97,13 @@ class CompanyPageFetcher:
         company: str,
         careers_url: str,
         *,
+        extractor: _Extractor | None = None,
         use_playwright: bool = True,
     ) -> None:
         self._client = client
         self._company = company
         self._careers_url = careers_url
+        self._extractor = extractor
         self._use_playwright = use_playwright
 
     async def fetch_content(self) -> str:
@@ -108,10 +115,24 @@ class CompanyPageFetcher:
         )
 
     async def search(self, query: JobQuery) -> AsyncIterator[JobPosting]:
-        """Stub — yields nothing until the LLM extractor (Task 13) is wired in."""
+        """Yield postings extracted from the careers page via the LLM extractor.
 
-        async def _empty() -> AsyncIterator[JobPosting]:
-            return
-            yield  # noqa: F701 — makes this an async generator
+        Yields nothing when no extractor is configured.
+        """
+        extractor = self._extractor
 
-        return _empty()
+        async def _generate() -> AsyncIterator[JobPosting]:
+            if extractor is None:
+                return
+            text = await fetch_content(
+                self._careers_url,
+                self._client,
+                use_playwright=self._use_playwright,
+            )
+            if text:
+                for posting in await extractor.extract(
+                    self._company, self._careers_url, text
+                ):
+                    yield posting
+
+        return _generate()

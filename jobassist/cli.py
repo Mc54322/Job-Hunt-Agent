@@ -13,7 +13,9 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from jobassist.aliases import AliasGenerator
 from jobassist.dedupe import deduplicate
+from jobassist.report import generate_report
 from jobassist.schemas import JobPosting, JobQuery, ScoredPosting
 from jobassist.scorer import ScoringPipeline
 from jobassist.sources.adzuna import AdzunaFetcher
@@ -77,27 +79,36 @@ async def _run_pipeline(
     adzuna_id: str | None,
     adzuna_key: str | None,
     db_path: str,
+    *,
+    expand_aliases: bool = True,
 ) -> list[ScoredPosting]:
-    """Fetch, deduplicate, and score postings for *query*."""
+    """Fetch, deduplicate, and score postings for *query* (and role aliases when enabled)."""
     store = Store(db_path)
     anthropic_client = anthropic.AsyncAnthropic()
     scorer = ScoringPipeline(anthropic_client, resume, store)
 
+    # Build the list of role variants to search (original + aliases)
+    roles = [query.role]
+    if expand_aliases:
+        alias_gen = AliasGenerator(anthropic_client, store)
+        aliases = await alias_gen.generate(query.role, query.job_type)
+        roles.extend(aliases)
+
     async with httpx.AsyncClient() as http:
         sources: list[Source] = []
 
-        # One Greenhouse fetcher covers all named companies via query.companies
         if query.companies:
             sources.append(GreenhouseFetcher(http))
 
-        # Adzuna for broad search (only when credentials are available)
         if adzuna_id and adzuna_key:
             sources.append(AdzunaFetcher(http, adzuna_id, adzuna_key))
 
         async def _merged() -> AsyncIterator[JobPosting]:
-            for source in sources:
-                async for posting in await source.search(query):
-                    yield posting
+            for role_variant in roles:
+                variant_query = query.model_copy(update={"role": role_variant})
+                for source in sources:
+                    async for posting in await source.search(variant_query):
+                        yield posting
 
         scored: list[ScoredPosting] = []
         async for posting in deduplicate(_merged()):
@@ -132,6 +143,16 @@ def search(
         "-r",
         help="Path to your resume (plain text). Overrides JOBASSIST_RESUME env var.",
         envvar="JOBASSIST_RESUME",
+    ),
+    report: Optional[Path] = typer.Option(
+        None,
+        "--report",
+        help="Write a Markdown report to this path.",
+    ),
+    aliases: bool = typer.Option(
+        True,
+        "--aliases/--no-aliases",
+        help="Expand role to synonyms before searching (uses one LLM call, cached).",
     ),
     db: str = typer.Option(
         str(Path.home() / ".jobassist" / "data.db"),
@@ -177,7 +198,7 @@ def search(
         raise typer.Exit(1)
 
     results = asyncio.run(
-        _run_pipeline(query, resume_text, adzuna_id, adzuna_key, db)
+        _run_pipeline(query, resume_text, adzuna_id, adzuna_key, db, expand_aliases=aliases)
     )
 
     if not results:
@@ -187,6 +208,10 @@ def search(
     _console.print()
     _console.print(_render_table(results))
     _console.print(f"\n[dim]{len(results)} postings scored.[/dim]")
+
+    if report is not None:
+        generate_report(results, query, report)
+        _console.print(f"[dim]Report written to {report}[/dim]")
 
 
 def main() -> None:

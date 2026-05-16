@@ -35,6 +35,9 @@ jobassist/
   dedupe.py         # deduplication — ATS-direct beats aggregator
   scorer.py         # LLM scoring pipeline with prompt caching (Claude)
   store.py          # SQLite store for postings + LLM/HTTP response cache
+  aliases.py         # Role alias generator (LLM, cached)
+  extractor.py       # LLM extractor for unknown company pages (Claude + pydantic)
+  report.py          # Markdown report generator
   sources/
     base.py            # Source protocol
     detector.py        # ATS detector — URL/HTML → ATS type
@@ -64,4 +67,7 @@ tests/
   test_workday.py
   test_reed.py
   test_company_page.py
+  test_extractor.py
+  test_report.py
+  test_aliases.py
 ```
