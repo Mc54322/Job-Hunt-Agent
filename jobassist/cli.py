@@ -22,6 +22,7 @@ from jobassist.scorer import ScoringPipeline
 from jobassist.sources.adzuna import AdzunaFetcher
 from jobassist.sources.base import Source
 from jobassist.sources.greenhouse import GreenhouseFetcher
+from jobassist.sources.reed import ReedFetcher
 from jobassist.store import Store
 
 app = typer.Typer(
@@ -31,6 +32,11 @@ app = typer.Typer(
 )
 
 _console = Console()
+
+
+@app.callback()
+def _callback() -> None:
+    """JobAssist — personal job search, deduplication, and LLM scoring."""
 
 
 def _score_colour(score: float) -> str:
@@ -79,6 +85,7 @@ async def _run_pipeline(
     resume: str,
     adzuna_id: str | None,
     adzuna_key: str | None,
+    reed_key: str | None,
     db_path: str,
     *,
     expand_aliases: bool = True,
@@ -103,6 +110,9 @@ async def _run_pipeline(
 
         if adzuna_id and adzuna_key:
             sources.append(AdzunaFetcher(http, adzuna_id, adzuna_key))
+
+        if reed_key:
+            sources.append(ReedFetcher(http, reed_key))
 
         async def _merged() -> AsyncIterator[JobPosting]:
             for role_variant in roles:
@@ -179,6 +189,7 @@ def search(
 
     adzuna_id = os.environ.get("ADZUNA_APP_ID")
     adzuna_key = os.environ.get("ADZUNA_APP_KEY")
+    reed_key = os.environ.get("REED_API_KEY")
 
     # Resolve companies: explicit --company flags + optional --index expansion
     resolved_companies: list[str] = list(company or [])
@@ -204,19 +215,15 @@ def search(
         _console.print(f"Companies: {', '.join(query.companies)}")
     _console.print()
 
-    if not adzuna_id or not adzuna_key:
-        _console.print(
-            "[yellow]Warning:[/yellow] ADZUNA_APP_ID / ADZUNA_APP_KEY not set — "
-            "Adzuna search skipped."
-        )
-
-    if not query.companies and (not adzuna_id or not adzuna_key):
-        _console.print("[red]Error:[/red] No sources available. Set Adzuna credentials or "
-                       "supply at least one --company.")
+    has_aggregator = (adzuna_id and adzuna_key) or reed_key
+    if not has_aggregator and not query.companies:
+        _console.print("[red]Error:[/red] No sources available. Set Adzuna or Reed credentials "
+                       "or supply at least one --company.")
         raise typer.Exit(1)
 
     results = asyncio.run(
-        _run_pipeline(query, resume_text, adzuna_id, adzuna_key, db, expand_aliases=aliases)
+        _run_pipeline(query, resume_text, adzuna_id, adzuna_key, reed_key, db,
+                      expand_aliases=aliases)
     )
 
     if not results:

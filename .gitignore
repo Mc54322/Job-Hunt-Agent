@@ -17,3 +17,7 @@ __pycache__/
 
 # claude code
 .claude/
+
+# personal data
+resume.txt
+*.resume.txt
