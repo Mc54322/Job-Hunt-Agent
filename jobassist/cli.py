@@ -15,6 +15,7 @@ from rich.table import Table
 
 from jobassist.aliases import AliasGenerator
 from jobassist.dedupe import deduplicate
+from jobassist.filters import top_per_company
 from jobassist.index import KNOWN_INDICES, companies_for_index
 from jobassist.report import generate_report
 from jobassist.schemas import JobPosting, JobQuery, ScoredPosting
@@ -173,6 +174,11 @@ def search(
         "--aliases/--no-aliases",
         help="Expand role to synonyms before searching (uses one LLM call, cached).",
     ),
+    one_per_company: bool = typer.Option(
+        True,
+        "--one-per-company/--all-per-company",
+        help="Show only the highest-scored posting per company (default: on).",
+    ),
     db: str = typer.Option(
         str(Path.home() / ".jobassist" / "data.db"),
         "--db",
@@ -225,6 +231,9 @@ def search(
         _run_pipeline(query, resume_text, adzuna_id, adzuna_key, reed_key, db,
                       expand_aliases=aliases)
     )
+
+    if one_per_company:
+        results = top_per_company(results)
 
     if not results:
         _console.print("No postings found.")
