@@ -6,7 +6,7 @@ from typing import AsyncIterator
 
 import pytest
 
-from jobassist.dedupe import ATS_SOURCES, deduplicate
+from jobassist.dedupe import ATS_SOURCES, _soft_key, deduplicate
 from jobassist.schemas import JobPosting
 
 # ---------------------------------------------------------------------------
@@ -150,3 +150,60 @@ async def test_mixed_stream_deduplicates_correctly() -> None:
     assert len(results) == 2
     acme = next(r for r in results if r.company == "Acme")
     assert acme.source == "greenhouse"
+
+
+# ---------------------------------------------------------------------------
+# Soft-key deduplication (same company+role, different locations)
+# ---------------------------------------------------------------------------
+
+
+def test_soft_key_normalises_role_noise() -> None:
+    p = _posting(role="Junior AI Engineer - job guarantee")
+    assert _soft_key(p) == "acme|junior ai engineer"
+
+
+def test_soft_key_lowercases() -> None:
+    p = _posting(company="ITOL Recruit", role="Trainee AI Engineer")
+    assert _soft_key(p) == "itol recruit|trainee ai engineer"
+
+
+@pytest.mark.asyncio
+async def test_same_role_different_location_collapses_to_one() -> None:
+    p1 = _posting(location="London, UK", source="reed", url="https://reed.co.uk/1")
+    p2 = _posting(location="Enfield, London", source="reed", url="https://reed.co.uk/2")
+    p3 = _posting(location="Bromley, South East London", source="reed", url="https://reed.co.uk/3")
+    results = await _collect(_stream(p1, p2, p3))
+    assert len(results) == 1
+
+
+@pytest.mark.asyncio
+async def test_soft_dedup_keeps_most_specific_location() -> None:
+    short = _posting(location="UK", source="reed", url="https://reed.co.uk/1")
+    long = _posting(location="London, Greater London", source="reed", url="https://reed.co.uk/2")
+    results = await _collect(_stream(short, long))
+    assert results[0].location == "London, Greater London"
+
+
+@pytest.mark.asyncio
+async def test_soft_dedup_ats_beats_aggregator() -> None:
+    agg = _posting(location="Manchester", source="reed", url="https://reed.co.uk/1")
+    ats = _posting(location="London", source="greenhouse", url="https://boards.greenhouse.io/1")
+    results = await _collect(_stream(agg, ats))
+    assert len(results) == 1
+    assert results[0].source == "greenhouse"
+
+
+@pytest.mark.asyncio
+async def test_different_roles_not_collapsed() -> None:
+    p1 = _posting(role="Junior AI Engineer", location="London")
+    p2 = _posting(role="Senior AI Engineer", location="Manchester")
+    results = await _collect(_stream(p1, p2))
+    assert len(results) == 2
+
+
+@pytest.mark.asyncio
+async def test_different_companies_not_collapsed() -> None:
+    p1 = _posting(company="Acme", location="London")
+    p2 = _posting(company="BetaCorp", location="Manchester")
+    results = await _collect(_stream(p1, p2))
+    assert len(results) == 2
