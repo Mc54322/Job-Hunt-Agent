@@ -85,8 +85,8 @@ def test_ats_source_lower_estimate_than_aggregator() -> None:
 
 
 def test_all_ats_sources_accepted() -> None:
-    for source in ["greenhouse", "lever", "workday", "ashby",
-                   "smartrecruiters", "personio", "teamtailor", "bamboohr"]:
+    for source in ["greenhouse", "lever", "ashby",
+                   "smartrecruiters", "teamtailor"]:
         result = estimate_volume(_posting(source=source))
         assert result.estimate > 0
 

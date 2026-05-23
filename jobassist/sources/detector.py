@@ -12,11 +12,8 @@ _URL_RULES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"boards\.greenhouse\.io", re.I), "greenhouse"),
     (re.compile(r"jobs\.lever\.co", re.I), "lever"),
     (re.compile(r"jobs\.ashbyhq\.com", re.I), "ashby"),
-    (re.compile(r"myworkdayjobs\.com", re.I), "workday"),
     (re.compile(r"smartrecruiters\.com", re.I), "smartrecruiters"),
-    (re.compile(r"personio\.(?:de|com)", re.I), "personio"),
     (re.compile(r"teamtailor\.com", re.I), "teamtailor"),
-    (re.compile(r"bamboohr\.com", re.I), "bamboohr"),
     (re.compile(r"reed\.co\.uk", re.I), "reed"),
 ]
 
@@ -24,7 +21,6 @@ _HTML_RULES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"boards\.greenhouse\.io", re.I), "greenhouse"),
     (re.compile(r"jobs\.lever\.co", re.I), "lever"),
     (re.compile(r"jobs\.ashbyhq\.com", re.I), "ashby"),
-    (re.compile(r"myworkdayjobs\.com", re.I), "workday"),
     (re.compile(r"smartrecruiters\.com", re.I), "smartrecruiters"),
 ]
 

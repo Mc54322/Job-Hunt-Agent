@@ -18,6 +18,7 @@ uv run jobassist search "Software Engineer" full-time --location "London, UK"
 uv run jobassist search "Data Analyst" contract -c DeepMind -c Palantir -n 20
 uv run jobassist search "Software Engineer" full-time --index ftse100 --report report.md
 uv run jobassist search "Engineer" full-time --index aim100 --no-aliases
+uv run jobassist search "Software Engineer" full-time --all-per-company   # show every role, not just best per company
 ```
 
 ## Development
@@ -44,17 +45,15 @@ jobassist/
   drafter.py        # Cover letter + CV bullet drafter (Claude, facts-only)
   salary.py         # Salary normaliser — parses raw strings to SalaryRange
   volume.py         # Applicant-volume estimate heuristic
+  filters.py        # Post-scoring result filters (top-per-company)
   sources/
     base.py             # Source protocol
     detector.py         # ATS detector — URL/HTML → ATS type
     greenhouse.py       # Greenhouse ATS fetcher
     lever.py            # Lever ATS fetcher
-    workday.py          # Workday ATS fetcher
     ashby.py            # Ashby ATS fetcher
     smartrecruiters.py  # SmartRecruiters ATS fetcher
-    personio.py         # Personio ATS fetcher
     teamtailor.py       # Teamtailor ATS fetcher (API token required)
-    bamboohr.py         # BambooHR ATS fetcher
     adzuna.py           # Adzuna aggregator fetcher (UK)
     reed.py             # Reed UK job board fetcher
     company_page.py     # Generic company-page fetcher (httpx + trafilatura + Playwright)
@@ -74,14 +73,13 @@ tests/
   test_schemas.py
   test_source_protocol.py
   test_ats_fetchers.py
-  test_additional_ats.py
+  test_additional_ats.py  # Ashby, SmartRecruiters, Teamtailor
   test_adzuna.py
   test_dedupe.py
   test_store.py
   test_scorer.py
   test_cli.py
   test_detector.py
-  test_workday.py
   test_reed.py
   test_company_page.py
   test_extractor.py
@@ -91,4 +89,5 @@ tests/
   test_drafter.py
   test_salary.py
   test_volume.py
+  test_filters.py
 ```

@@ -17,14 +17,6 @@ def test_detects_lever_from_url() -> None:
     assert detect_ats("https://jobs.lever.co/acme/abc-001") == "lever"
 
 
-def test_detects_workday_from_url() -> None:
-    assert detect_ats("https://amazon.wd3.myworkdayjobs.com/en-US/External") == "workday"
-
-
-def test_detects_workday_different_wd_number() -> None:
-    assert detect_ats("https://barclays.wd5.myworkdayjobs.com/External_Careers") == "workday"
-
-
 def test_detects_ashby_from_url() -> None:
     assert detect_ats("https://jobs.ashbyhq.com/acme") == "ashby"
 
@@ -58,11 +50,6 @@ def test_detects_greenhouse_from_html() -> None:
 def test_detects_lever_from_html() -> None:
     html = '<div id="lever-jobs" data-url="https://jobs.lever.co/acme"></div>'
     assert detect_ats("https://careers.acme.com", html) == "lever"
-
-
-def test_detects_workday_from_html() -> None:
-    html = '<a href="https://acme.myworkdayjobs.com/en-US/careers">Apply</a>'
-    assert detect_ats("https://careers.acme.com", html) == "workday"
 
 
 def test_url_takes_priority_over_html() -> None:

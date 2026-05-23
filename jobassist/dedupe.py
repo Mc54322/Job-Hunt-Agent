@@ -12,12 +12,9 @@ from jobassist.schemas import JobPosting
 ATS_SOURCES: frozenset[str] = frozenset({
     "greenhouse",
     "lever",
-    "workday",
     "ashby",
     "smartrecruiters",
-    "personio",
     "teamtailor",
-    "bamboohr",
 })
 
 # Noise suffixes that recruiters append to role titles (e.g. "- job guarantee",
