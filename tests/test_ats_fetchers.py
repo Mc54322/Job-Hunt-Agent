@@ -81,7 +81,7 @@ def test_role_no_match() -> None:
 @pytest.mark.asyncio
 @respx.mock
 async def test_greenhouse_yields_matching_postings() -> None:
-    respx.get("https://boards.greenhouse.io/acme/embed/job_board?format=json").mock(
+    respx.get("https://boards-api.greenhouse.io/v1/boards/acme/jobs?content=true").mock(
         return_value=httpx.Response(200, json=_GH_FIXTURE)
     )
     results = await _collect(GreenhouseFetcher(_make_client()), _QUERY_SE)
@@ -93,7 +93,7 @@ async def test_greenhouse_yields_matching_postings() -> None:
 @pytest.mark.asyncio
 @respx.mock
 async def test_greenhouse_filters_non_matching_roles() -> None:
-    respx.get("https://boards.greenhouse.io/acme/embed/job_board?format=json").mock(
+    respx.get("https://boards-api.greenhouse.io/v1/boards/acme/jobs?content=true").mock(
         return_value=httpx.Response(200, json=_GH_FIXTURE)
     )
     query = JobQuery(role="Data Analyst", job_type="full-time", companies=["Acme"])
@@ -111,7 +111,7 @@ async def test_greenhouse_empty_companies_yields_nothing() -> None:
 @pytest.mark.asyncio
 @respx.mock
 async def test_greenhouse_skips_404_company() -> None:
-    respx.get("https://boards.greenhouse.io/acme/embed/job_board?format=json").mock(
+    respx.get("https://boards-api.greenhouse.io/v1/boards/acme/jobs?content=true").mock(
         return_value=httpx.Response(404)
     )
     results = await _collect(GreenhouseFetcher(_make_client()), _QUERY_SE)
@@ -121,7 +121,7 @@ async def test_greenhouse_skips_404_company() -> None:
 @pytest.mark.asyncio
 @respx.mock
 async def test_greenhouse_posting_fields() -> None:
-    respx.get("https://boards.greenhouse.io/acme/embed/job_board?format=json").mock(
+    respx.get("https://boards-api.greenhouse.io/v1/boards/acme/jobs?content=true").mock(
         return_value=httpx.Response(200, json=_GH_FIXTURE)
     )
     results = await _collect(GreenhouseFetcher(_make_client()), _QUERY_SE)

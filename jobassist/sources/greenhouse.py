@@ -11,7 +11,7 @@ import httpx
 
 from jobassist.schemas import JobPosting, JobQuery
 
-_BOARD_URL = "https://boards.greenhouse.io/{slug}/embed/job_board?format=json"
+_BOARD_URL = "https://boards-api.greenhouse.io/v1/boards/{slug}/jobs?content=true"
 _USER_AGENT = "JobAssist/0.1 (personal job search; https://github.com/job-hunt-agent)"
 _RATE_DELAY = 1.0
 _RATE_JITTER = 0.2
