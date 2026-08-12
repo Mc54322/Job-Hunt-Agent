@@ -10,7 +10,14 @@ import httpx
 import pytest
 import respx
 
-from jobassist.schemas import JobPosting, JobQuery
+from jobassist.Microservices.web_scraper.models.schemas import JobPosting, JobQuery
+from jobassist.Microservices.web_scraper.sources.ats.ashby.ashby import AshbyFetcher
+from jobassist.Microservices.web_scraper.sources.ats.smartrecruiters.smartrecruiters import (
+    SmartRecruitersFetcher,
+)
+from jobassist.Microservices.web_scraper.sources.ats.teamtailor.teamtailor import (
+    TeamtailorFetcher,
+)
 
 _FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -31,7 +38,6 @@ def _load(name: str) -> Any:
 class TestAshbyFetcher:
     @pytest.mark.asyncio
     async def test_returns_matching_postings(self) -> None:
-        from jobassist.sources.ashby import AshbyFetcher
 
         data = _load("ashby_jobs.json")
         with respx.mock:
@@ -47,7 +53,6 @@ class TestAshbyFetcher:
 
     @pytest.mark.asyncio
     async def test_posting_fields(self) -> None:
-        from jobassist.sources.ashby import AshbyFetcher
 
         data = _load("ashby_jobs.json")
         with respx.mock:
@@ -66,7 +71,6 @@ class TestAshbyFetcher:
 
     @pytest.mark.asyncio
     async def test_remote_flag_overrides_location(self) -> None:
-        from jobassist.sources.ashby import AshbyFetcher
 
         data = _load("ashby_jobs.json")
         query = JobQuery(role="Data Analyst", job_type="full-time", companies=["Acme"])
@@ -82,7 +86,6 @@ class TestAshbyFetcher:
 
     @pytest.mark.asyncio
     async def test_no_match_returns_empty(self) -> None:
-        from jobassist.sources.ashby import AshbyFetcher
 
         data = _load("ashby_jobs.json")
         with respx.mock:
@@ -97,7 +100,6 @@ class TestAshbyFetcher:
 
     @pytest.mark.asyncio
     async def test_http_error_skips_company(self) -> None:
-        from jobassist.sources.ashby import AshbyFetcher
 
         with respx.mock:
             respx.post("https://api.ashbyhq.com/posting-api/job-board/acme").mock(
@@ -111,7 +113,6 @@ class TestAshbyFetcher:
 
     @pytest.mark.asyncio
     async def test_all_postings_are_job_postings(self) -> None:
-        from jobassist.sources.ashby import AshbyFetcher
 
         data = _load("ashby_jobs.json")
         query = JobQuery(role="", job_type="full-time", companies=["Acme"])
@@ -134,7 +135,6 @@ class TestAshbyFetcher:
 class TestSmartRecruitersFetcher:
     @pytest.mark.asyncio
     async def test_returns_matching_postings(self) -> None:
-        from jobassist.sources.smartrecruiters import SmartRecruitersFetcher
 
         data = _load("smartrecruiters_jobs.json")
         with respx.mock:
@@ -150,7 +150,6 @@ class TestSmartRecruitersFetcher:
 
     @pytest.mark.asyncio
     async def test_posting_fields(self) -> None:
-        from jobassist.sources.smartrecruiters import SmartRecruitersFetcher
 
         data = _load("smartrecruiters_jobs.json")
         with respx.mock:
@@ -168,7 +167,6 @@ class TestSmartRecruitersFetcher:
 
     @pytest.mark.asyncio
     async def test_no_match_returns_empty(self) -> None:
-        from jobassist.sources.smartrecruiters import SmartRecruitersFetcher
 
         data = _load("smartrecruiters_jobs.json")
         with respx.mock:
@@ -183,7 +181,6 @@ class TestSmartRecruitersFetcher:
 
     @pytest.mark.asyncio
     async def test_http_error_skips_company(self) -> None:
-        from jobassist.sources.smartrecruiters import SmartRecruitersFetcher
 
         with respx.mock:
             respx.get("https://api.smartrecruiters.com/v1/companies/Acme/postings").mock(
@@ -197,7 +194,6 @@ class TestSmartRecruitersFetcher:
 
     @pytest.mark.asyncio
     async def test_q_param_passed(self) -> None:
-        from jobassist.sources.smartrecruiters import SmartRecruitersFetcher
 
         data = _load("smartrecruiters_jobs.json")
         with respx.mock:
@@ -221,7 +217,6 @@ class TestTeamtailorFetcher:
 
     @pytest.mark.asyncio
     async def test_returns_matching_postings(self) -> None:
-        from jobassist.sources.teamtailor import TeamtailorFetcher
 
         data = _load("teamtailor_jobs.json")
         with respx.mock:
@@ -237,7 +232,6 @@ class TestTeamtailorFetcher:
 
     @pytest.mark.asyncio
     async def test_posting_fields(self) -> None:
-        from jobassist.sources.teamtailor import TeamtailorFetcher
 
         data = _load("teamtailor_jobs.json")
         with respx.mock:
@@ -256,7 +250,6 @@ class TestTeamtailorFetcher:
 
     @pytest.mark.asyncio
     async def test_location_resolved_from_included(self) -> None:
-        from jobassist.sources.teamtailor import TeamtailorFetcher
 
         data = _load("teamtailor_jobs.json")
         with respx.mock:
@@ -271,7 +264,6 @@ class TestTeamtailorFetcher:
 
     @pytest.mark.asyncio
     async def test_no_location_falls_back_to_unknown(self) -> None:
-        from jobassist.sources.teamtailor import TeamtailorFetcher
 
         data = _load("teamtailor_jobs.json")
         with respx.mock:
@@ -286,7 +278,6 @@ class TestTeamtailorFetcher:
 
     @pytest.mark.asyncio
     async def test_auth_header_sent(self) -> None:
-        from jobassist.sources.teamtailor import TeamtailorFetcher
 
         data = _load("teamtailor_jobs.json")
         with respx.mock:
@@ -301,7 +292,6 @@ class TestTeamtailorFetcher:
 
     @pytest.mark.asyncio
     async def test_http_error_stops_iteration(self) -> None:
-        from jobassist.sources.teamtailor import TeamtailorFetcher
 
         with respx.mock:
             respx.get("https://api.teamtailor.com/v1/jobs").mock(

@@ -8,9 +8,13 @@ from unittest.mock import AsyncMock, MagicMock
 import anthropic
 import pytest
 
-from jobassist.extractor import PageExtractor, _resolve_url, _strip_fences
-from jobassist.schemas import JobPosting
-from jobassist.store import Store
+from jobassist.Microservices.job_recommender.persistence.store import Store
+from jobassist.Microservices.web_scraper.models.schemas import JobPosting
+from jobassist.Microservices.web_scraper.sources.company_pages.extractor import (
+    PageExtractor,
+    _resolve_url,
+    _strip_fences,
+)
 
 _COMPANY = "Acme"
 _PAGE_URL = "https://careers.acme.com/jobs"
@@ -193,8 +197,10 @@ async def test_company_page_fetcher_with_extractor_yields_postings(store: Store)
     import httpx
     import respx
 
-    from jobassist.schemas import JobQuery
-    from jobassist.sources.company_page import CompanyPageFetcher
+    from jobassist.Microservices.web_scraper.models.schemas import JobQuery
+    from jobassist.Microservices.web_scraper.sources.company_pages.company_page import (
+        CompanyPageFetcher,
+    )
     from tests.test_company_page import _RICH_HTML
 
     client_llm = _make_client(_POSTINGS_RESPONSE)
@@ -217,8 +223,10 @@ async def test_company_page_fetcher_with_extractor_yields_postings(store: Store)
 async def test_company_page_fetcher_without_extractor_yields_nothing(store: Store) -> None:
     import httpx
 
-    from jobassist.schemas import JobQuery
-    from jobassist.sources.company_page import CompanyPageFetcher
+    from jobassist.Microservices.web_scraper.models.schemas import JobQuery
+    from jobassist.Microservices.web_scraper.sources.company_pages.company_page import (
+        CompanyPageFetcher,
+    )
 
     http = httpx.AsyncClient()
     fetcher = CompanyPageFetcher(http, _COMPANY, _PAGE_URL, use_playwright=False)

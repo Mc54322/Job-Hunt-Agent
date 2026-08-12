@@ -8,8 +8,11 @@ from unittest.mock import AsyncMock, MagicMock
 import anthropic
 import pytest
 
-from jobassist.aliases import AliasGenerator, _strip_fences
-from jobassist.store import Store
+from jobassist.Microservices.job_recommender.persistence.store import Store
+from jobassist.Microservices.web_scraper.query_expansion.aliases import (
+    AliasGenerator,
+    _strip_fences,
+)
 
 _ROLE = "Software Engineer"
 _JOB_TYPE = "full-time"

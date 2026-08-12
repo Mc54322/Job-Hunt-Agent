@@ -8,14 +8,15 @@ import httpx
 import pytest
 import respx
 
-from jobassist.schemas import JobQuery
-from jobassist.sources.company_page import (
+from jobassist.Microservices.web_scraper.models.schemas import JobQuery
+from jobassist.Microservices.web_scraper.sources.company_pages.company_page import (
     _MIN_CONTENT_CHARS,
     CompanyPageFetcher,
     _extract,
     fetch_content,
 )
 
+_CP_MOD = "jobassist.Microservices.web_scraper.sources.company_pages.company_page"
 _CAREERS_URL = "https://careers.acme.com/jobs"
 _COMPANY = "Acme"
 
@@ -102,7 +103,7 @@ async def test_playwright_not_called_when_httpx_succeeds(client: httpx.AsyncClie
     respx.get(_CAREERS_URL).mock(return_value=httpx.Response(200, text=_RICH_HTML))
 
     with patch(
-        "jobassist.sources.company_page._fetch_html_playwright", new_callable=AsyncMock
+        f"{_CP_MOD}._fetch_html_playwright", new_callable=AsyncMock
     ) as mock_pw:
         await fetch_content(_CAREERS_URL, client, use_playwright=True)
 
@@ -115,9 +116,9 @@ async def test_playwright_called_when_httpx_yields_thin_content(client: httpx.As
     respx.get(_CAREERS_URL).mock(return_value=httpx.Response(200, text=_THIN_HTML))
 
     with (
-        patch("jobassist.sources.company_page._PLAYWRIGHT_AVAILABLE", True),
+        patch(f"{_CP_MOD}._PLAYWRIGHT_AVAILABLE", True),
         patch(
-            "jobassist.sources.company_page._fetch_html_playwright",
+            f"{_CP_MOD}._fetch_html_playwright",
             new_callable=AsyncMock,
             return_value=_RICH_HTML,
         ) as mock_pw,
@@ -134,7 +135,7 @@ async def test_playwright_not_called_when_disabled(client: httpx.AsyncClient) ->
     respx.get(_CAREERS_URL).mock(return_value=httpx.Response(200, text=_THIN_HTML))
 
     with patch(
-        "jobassist.sources.company_page._fetch_html_playwright", new_callable=AsyncMock
+        f"{_CP_MOD}._fetch_html_playwright", new_callable=AsyncMock
     ) as mock_pw:
         await fetch_content(_CAREERS_URL, client, use_playwright=False)
 

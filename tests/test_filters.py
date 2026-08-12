@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import pytest
-
-from jobassist.filters import top_per_company
-from jobassist.schemas import JobPosting, ScoredPosting
+from jobassist.Microservices.job_recommender.ranking.filters import top_per_company
+from jobassist.Microservices.web_scraper.models.schemas import JobPosting, ScoredPosting
 
 
 def _posting(

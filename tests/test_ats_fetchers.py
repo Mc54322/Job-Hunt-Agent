@@ -9,10 +9,14 @@ import httpx
 import pytest
 import respx
 
-from jobassist.schemas import JobPosting, JobQuery
-from jobassist.sources.base import Source
-from jobassist.sources.greenhouse import GreenhouseFetcher, _role_matches, _slugify
-from jobassist.sources.lever import LeverFetcher
+from jobassist.Microservices.web_scraper.contracts.base import Source
+from jobassist.Microservices.web_scraper.models.schemas import JobPosting, JobQuery
+from jobassist.Microservices.web_scraper.sources.ats.greenhouse.greenhouse import (
+    GreenhouseFetcher,
+    _role_matches,
+    _slugify,
+)
+from jobassist.Microservices.web_scraper.sources.ats.lever.lever import LeverFetcher
 
 _FIXTURES = Path(__file__).parent / "fixtures"
 

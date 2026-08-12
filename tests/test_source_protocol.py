@@ -6,8 +6,8 @@ from typing import AsyncIterator
 
 import pytest
 
-from jobassist.schemas import JobPosting, JobQuery
-from jobassist.sources.base import Source
+from jobassist.Microservices.web_scraper.contracts.base import Source
+from jobassist.Microservices.web_scraper.models.schemas import JobPosting, JobQuery
 
 _QUERY = JobQuery(role="Software Engineer", job_type="full-time")
 

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from jobassist.report import _render, generate_report
-from jobassist.schemas import JobPosting, JobQuery, ScoredPosting
+from jobassist.Microservices.job_recommender.reporting.report import _render, generate_report
+from jobassist.Microservices.web_scraper.models.schemas import JobPosting, JobQuery, ScoredPosting
 
 
 def _sp(
@@ -160,6 +160,6 @@ def test_generate_report_is_utf8(tmp_path: Path) -> None:
 def test_cli_search_help_shows_report_option() -> None:
     from typer.testing import CliRunner
 
-    from jobassist.cli import app
+    from jobassist.Microservices.job_recommender.orchestration.cli import app
     result = CliRunner().invoke(app, ["search", "--help"])
     assert "--report" in result.output

@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import pytest
 
-from jobassist.index import KNOWN_INDICES, companies_for_index
+from jobassist.Microservices.web_scraper.query_expansion.index import (
+    KNOWN_INDICES,
+    companies_for_index,
+)
 
 
 def test_ftse100_returns_list() -> None:
@@ -81,7 +84,7 @@ def test_no_empty_company_names() -> None:
 def test_cli_search_help_shows_index_option() -> None:
     from typer.testing import CliRunner
 
-    from jobassist.cli import app
+    from jobassist.Microservices.job_recommender.orchestration.cli import app
 
     result = CliRunner().invoke(app, ["search", "--help"])
     assert "--index" in result.output
@@ -91,7 +94,7 @@ def test_cli_index_invalid_exits_nonzero(tmp_path: "Path") -> None:  # noqa: F82
 
     from typer.testing import CliRunner
 
-    from jobassist.cli import app
+    from jobassist.Microservices.job_recommender.orchestration.cli import app
 
     resume = tmp_path / "resume.txt"
     resume.write_text("My resume")
@@ -107,7 +110,7 @@ def test_cli_index_valid_does_not_show_unknown_error(tmp_path: "Path") -> None: 
 
     from typer.testing import CliRunner
 
-    from jobassist.cli import app
+    from jobassist.Microservices.job_recommender.orchestration.cli import app
 
     resume = tmp_path / "resume.txt"
     resume.write_text("My resume")

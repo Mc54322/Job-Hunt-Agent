@@ -29,7 +29,7 @@ dev = [
 ]
 
 [project.scripts]
-jobassist = "jobassist.cli:main"
+jobassist = "jobassist.Microservices.job_recommender.orchestration.cli:main"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -38,6 +38,10 @@ pythonpath = ["."]
 [tool.mypy]
 python_version = "3.11"
 strict = true
+# Services live in namespace packages (no __init__.py); anchor module names to the repo root.
+mypy_path = "."
+explicit_package_bases = true
+namespace_packages = true
 
 [tool.ruff]
 line-length = 100

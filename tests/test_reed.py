@@ -9,8 +9,13 @@ import httpx
 import pytest
 import respx
 
-from jobassist.schemas import JobPosting, JobQuery
-from jobassist.sources.reed import ReedFetcher, _auth_header, _format_salary, _parse_date
+from jobassist.Microservices.web_scraper.models.schemas import JobPosting, JobQuery
+from jobassist.Microservices.web_scraper.sources.aggregators.reed.reed import (
+    ReedFetcher,
+    _auth_header,
+    _format_salary,
+    _parse_date,
+)
 
 _FIXTURES = Path(__file__).parent / "fixtures"
 _SEARCH_URL = "https://www.reed.co.uk/api/1.0/search"

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
-from jobassist.schemas import JobPosting
-from jobassist.volume import VolumeEstimate, estimate_volume
+from jobassist.Microservices.data_cleaner.enrichment.volume import VolumeEstimate, estimate_volume
+from jobassist.Microservices.web_scraper.models.schemas import JobPosting
 
 
 def _posting(

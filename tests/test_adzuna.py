@@ -9,9 +9,12 @@ import httpx
 import pytest
 import respx
 
-from jobassist.schemas import JobPosting, JobQuery
-from jobassist.sources.adzuna import AdzunaFetcher, _format_salary
-from jobassist.sources.base import Source
+from jobassist.Microservices.web_scraper.contracts.base import Source
+from jobassist.Microservices.web_scraper.models.schemas import JobPosting, JobQuery
+from jobassist.Microservices.web_scraper.sources.aggregators.adzuna.adzuna import (
+    AdzunaFetcher,
+    _format_salary,
+)
 
 _FIXTURES = Path(__file__).parent / "fixtures"
 _P1: dict = json.loads((_FIXTURES / "adzuna_search_p1.json").read_text())

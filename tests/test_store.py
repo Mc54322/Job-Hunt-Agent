@@ -6,8 +6,8 @@ import sqlite3
 
 import pytest
 
-from jobassist.schemas import JobPosting
-from jobassist.store import Store, cache_key
+from jobassist.Microservices.job_recommender.persistence.store import Store, cache_key
+from jobassist.Microservices.web_scraper.models.schemas import JobPosting
 
 _POSTING = JobPosting(
     company="Acme",

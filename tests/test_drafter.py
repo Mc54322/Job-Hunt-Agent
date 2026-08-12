@@ -8,9 +8,13 @@ from unittest.mock import MagicMock
 import anthropic
 import pytest
 
-from jobassist.drafter import CoverLetterDrafter, DraftedApplication, _strip_fences
-from jobassist.schemas import JobPosting
-from jobassist.store import Store
+from jobassist.Microservices.cv_feedback_provider.drafting.drafter import (
+    CoverLetterDrafter,
+    DraftedApplication,
+    _strip_fences,
+)
+from jobassist.Microservices.job_recommender.persistence.store import Store
+from jobassist.Microservices.web_scraper.models.schemas import JobPosting
 
 _RESUME = "Experienced software engineer with 5 years in Python and distributed systems."
 _POSTING = JobPosting(

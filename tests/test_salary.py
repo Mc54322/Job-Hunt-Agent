@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from jobassist.salary import SalaryRange, parse_salary
+from jobassist.Microservices.data_cleaner.normalisation.salary import SalaryRange, parse_salary
 
 # ---------------------------------------------------------------------------
 # None / empty inputs

@@ -6,8 +6,12 @@ from typing import AsyncIterator
 
 import pytest
 
-from jobassist.dedupe import ATS_SOURCES, _soft_key, deduplicate
-from jobassist.schemas import JobPosting
+from jobassist.Microservices.data_cleaner.deduplication.dedupe import (
+    ATS_SOURCES,
+    _soft_key,
+    deduplicate,
+)
+from jobassist.Microservices.web_scraper.models.schemas import JobPosting
 
 # ---------------------------------------------------------------------------
 # Helpers

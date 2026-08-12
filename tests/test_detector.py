@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from jobassist.sources.detector import detect_ats
+from jobassist.Microservices.web_scraper.detection.detector import detect_ats
 
 # ---------------------------------------------------------------------------
 # URL-based detection

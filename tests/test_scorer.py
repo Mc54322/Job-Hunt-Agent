@@ -8,9 +8,13 @@ from unittest.mock import AsyncMock, MagicMock
 import anthropic
 import pytest
 
-from jobassist.schemas import JobPosting, ScoredPosting
-from jobassist.scorer import ScoringPipeline, _build_user_message, _extract_json
-from jobassist.store import Store
+from jobassist.Microservices.job_recommender.persistence.store import Store
+from jobassist.Microservices.job_recommender.scoring.scorer import (
+    ScoringPipeline,
+    _build_user_message,
+    _extract_json,
+)
+from jobassist.Microservices.web_scraper.models.schemas import JobPosting, ScoredPosting
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -143,7 +147,7 @@ async def test_score_caches_response_after_llm_call(store: Store) -> None:
     # Cache should now hold the raw JSON for this posting
     import hashlib
 
-    from jobassist.store import cache_key
+    from jobassist.Microservices.job_recommender.persistence.store import cache_key
 
     resume_hash = hashlib.sha256(_RESUME.encode()).hexdigest()
     key = cache_key(resume_hash, _POSTING.hash)
