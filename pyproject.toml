@@ -12,11 +12,13 @@ description = "Personal job aggregator — search, score, and surface best-fit p
 requires-python = ">=3.11"
 dependencies = [
     "anthropic>=0.97.0",
+    "fastapi>=0.115.0",
     "httpx>=0.28.1",
     "pydantic>=2.13.3",
     "selectolax>=0.4.7",
     "trafilatura>=2.0.0",
     "typer>=0.25.1",
+    "uvicorn[standard]>=0.30.0",
 ]
 
 [dependency-groups]
@@ -30,6 +32,10 @@ dev = [
 
 [project.scripts]
 jobassist = "jobassist.Microservices.job_recommender.orchestration.cli:main"
+jobassist-web-scraper = "jobassist.Microservices.web_scraper.api:main"
+jobassist-data-cleaner = "jobassist.Microservices.data_cleaner.api:main"
+jobassist-job-recommender = "jobassist.Microservices.job_recommender.api:main"
+jobassist-cv-feedback = "jobassist.Microservices.cv_feedback_provider.api:main"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

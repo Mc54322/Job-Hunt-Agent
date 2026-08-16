@@ -8,13 +8,14 @@ from unittest.mock import AsyncMock, MagicMock
 import anthropic
 import pytest
 
+from jobassist.Microservices.job_recommender.cache_client import LocalCacheClient
+from jobassist.Microservices.job_recommender.models import JobPosting, ScoredPosting
 from jobassist.Microservices.job_recommender.persistence.store import Store
 from jobassist.Microservices.job_recommender.scoring.scorer import (
     ScoringPipeline,
     _build_user_message,
     _extract_json,
 )
-from jobassist.Microservices.web_scraper.models.schemas import JobPosting, ScoredPosting
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -127,7 +128,7 @@ def test_build_user_message_no_description_placeholder() -> None:
 @pytest.mark.asyncio
 async def test_score_calls_llm_on_cache_miss(store: Store) -> None:
     client = _make_client(_SCORE_RESPONSE)
-    pipeline = ScoringPipeline(client, _RESUME, store)
+    pipeline = ScoringPipeline(client, _RESUME, LocalCacheClient(store))
 
     result = await pipeline.score(_POSTING)
 
@@ -140,7 +141,7 @@ async def test_score_calls_llm_on_cache_miss(store: Store) -> None:
 @pytest.mark.asyncio
 async def test_score_caches_response_after_llm_call(store: Store) -> None:
     client = _make_client(_SCORE_RESPONSE)
-    pipeline = ScoringPipeline(client, _RESUME, store)
+    pipeline = ScoringPipeline(client, _RESUME, LocalCacheClient(store))
 
     await pipeline.score(_POSTING)
 
@@ -162,7 +163,7 @@ async def test_score_caches_response_after_llm_call(store: Store) -> None:
 @pytest.mark.asyncio
 async def test_score_uses_cache_on_second_call(store: Store) -> None:
     client = _make_client(_SCORE_RESPONSE)
-    pipeline = ScoringPipeline(client, _RESUME, store)
+    pipeline = ScoringPipeline(client, _RESUME, LocalCacheClient(store))
 
     await pipeline.score(_POSTING)
     await pipeline.score(_POSTING)  # second call — should hit cache
@@ -173,7 +174,7 @@ async def test_score_uses_cache_on_second_call(store: Store) -> None:
 @pytest.mark.asyncio
 async def test_score_returns_cached_result(store: Store) -> None:
     client = _make_client(_SCORE_RESPONSE)
-    pipeline = ScoringPipeline(client, _RESUME, store)
+    pipeline = ScoringPipeline(client, _RESUME, LocalCacheClient(store))
 
     first = await pipeline.score(_POSTING)
     second = await pipeline.score(_POSTING)
@@ -195,8 +196,8 @@ async def test_different_resumes_are_cached_independently(store: Store) -> None:
     client_a = _make_client(response_a)
     client_b = _make_client(response_b)
 
-    pipeline_a = ScoringPipeline(client_a, "Resume A content.", store)
-    pipeline_b = ScoringPipeline(client_b, "Resume B content.", store)
+    pipeline_a = ScoringPipeline(client_a, "Resume A content.", LocalCacheClient(store))
+    pipeline_b = ScoringPipeline(client_b, "Resume B content.", LocalCacheClient(store))
 
     result_a = await pipeline_a.score(_POSTING)
     result_b = await pipeline_b.score(_POSTING)
@@ -213,7 +214,7 @@ async def test_different_resumes_are_cached_independently(store: Store) -> None:
 @pytest.mark.asyncio
 async def test_score_sends_resume_in_system_prompt(store: Store) -> None:
     client = _make_client(_SCORE_RESPONSE)
-    pipeline = ScoringPipeline(client, _RESUME, store)
+    pipeline = ScoringPipeline(client, _RESUME, LocalCacheClient(store))
 
     await pipeline.score(_POSTING)
 
@@ -227,7 +228,7 @@ async def test_score_sends_resume_in_system_prompt(store: Store) -> None:
 @pytest.mark.asyncio
 async def test_score_system_block_has_cache_control(store: Store) -> None:
     client = _make_client(_SCORE_RESPONSE)
-    pipeline = ScoringPipeline(client, _RESUME, store)
+    pipeline = ScoringPipeline(client, _RESUME, LocalCacheClient(store))
 
     await pipeline.score(_POSTING)
 
@@ -247,6 +248,6 @@ async def test_score_is_between_0_and_1(store: Store) -> None:
         local_store = Store(":memory:")
         resp = json.dumps({"score": score_val, "rationale": "test"})
         client = _make_client(resp)
-        pipeline = ScoringPipeline(client, _RESUME, local_store)
+        pipeline = ScoringPipeline(client, _RESUME, LocalCacheClient(local_store))
         result = await pipeline.score(_POSTING)
         assert 0.0 <= result.score <= 1.0

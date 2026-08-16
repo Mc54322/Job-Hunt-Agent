@@ -13,6 +13,7 @@ from jobassist.Microservices.cv_feedback_provider.drafting.drafter import (
     DraftedApplication,
     _strip_fences,
 )
+from jobassist.Microservices.job_recommender.cache_client import LocalCacheClient
 from jobassist.Microservices.job_recommender.persistence.store import Store
 from jobassist.Microservices.web_scraper.models.schemas import JobPosting
 
@@ -82,7 +83,7 @@ def test_strip_fences_passthrough_plain() -> None:
 @pytest.mark.asyncio
 async def test_draft_returns_drafted_application(store: Store) -> None:
     client = _make_client(_CL_RESPONSE, _BULLETS_RESPONSE)
-    drafter = CoverLetterDrafter(client, _RESUME, store)
+    drafter = CoverLetterDrafter(client, _RESUME, LocalCacheClient(store))
 
     result = await drafter.draft(_POSTING)
 
@@ -92,7 +93,7 @@ async def test_draft_returns_drafted_application(store: Store) -> None:
 @pytest.mark.asyncio
 async def test_draft_cover_letter_non_empty(store: Store) -> None:
     client = _make_client(_CL_RESPONSE, _BULLETS_RESPONSE)
-    drafter = CoverLetterDrafter(client, _RESUME, store)
+    drafter = CoverLetterDrafter(client, _RESUME, LocalCacheClient(store))
 
     result = await drafter.draft(_POSTING)
 
@@ -103,7 +104,7 @@ async def test_draft_cover_letter_non_empty(store: Store) -> None:
 @pytest.mark.asyncio
 async def test_draft_bullets_non_empty(store: Store) -> None:
     client = _make_client(_CL_RESPONSE, _BULLETS_RESPONSE)
-    drafter = CoverLetterDrafter(client, _RESUME, store)
+    drafter = CoverLetterDrafter(client, _RESUME, LocalCacheClient(store))
 
     result = await drafter.draft(_POSTING)
 
@@ -130,7 +131,7 @@ async def test_draft_makes_two_llm_calls(store: Store) -> None:
     client = MagicMock(spec=anthropic.AsyncAnthropic)
     client.messages = messages
 
-    drafter = CoverLetterDrafter(client, _RESUME, store)  # type: ignore[arg-type]
+    drafter = CoverLetterDrafter(client, _RESUME, LocalCacheClient(store))  # type: ignore[arg-type]
     await drafter.draft(_POSTING)
 
     assert call_count[0] == 2
@@ -159,7 +160,7 @@ async def test_second_draft_uses_cache(store: Store) -> None:
     client = MagicMock(spec=anthropic.AsyncAnthropic)
     client.messages = messages
 
-    drafter = CoverLetterDrafter(client, _RESUME, store)  # type: ignore[arg-type]
+    drafter = CoverLetterDrafter(client, _RESUME, LocalCacheClient(store))  # type: ignore[arg-type]
     first = await drafter.draft(_POSTING)
     second = await drafter.draft(_POSTING)
 
@@ -176,7 +177,7 @@ async def test_second_draft_uses_cache(store: Store) -> None:
 @pytest.mark.asyncio
 async def test_draft_handles_invalid_cover_letter_json(store: Store) -> None:
     client = _make_client("not json at all", _BULLETS_RESPONSE)
-    drafter = CoverLetterDrafter(client, _RESUME, store)
+    drafter = CoverLetterDrafter(client, _RESUME, LocalCacheClient(store))
 
     result = await drafter.draft(_POSTING)
 
@@ -186,7 +187,7 @@ async def test_draft_handles_invalid_cover_letter_json(store: Store) -> None:
 @pytest.mark.asyncio
 async def test_draft_handles_invalid_bullets_json(store: Store) -> None:
     client = _make_client(_CL_RESPONSE, "oops")
-    drafter = CoverLetterDrafter(client, _RESUME, store)
+    drafter = CoverLetterDrafter(client, _RESUME, LocalCacheClient(store))
 
     result = await drafter.draft(_POSTING)
 
@@ -197,7 +198,7 @@ async def test_draft_handles_invalid_bullets_json(store: Store) -> None:
 async def test_draft_filters_empty_bullets(store: Store) -> None:
     bad_bullets = json.dumps({"bullets": ["Good bullet.", "", "  "]})
     client = _make_client(_CL_RESPONSE, bad_bullets)
-    drafter = CoverLetterDrafter(client, _RESUME, store)
+    drafter = CoverLetterDrafter(client, _RESUME, LocalCacheClient(store))
 
     result = await drafter.draft(_POSTING)
 

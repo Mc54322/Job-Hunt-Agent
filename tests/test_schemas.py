@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from jobassist.Microservices.web_scraper.models.schemas import (
+from jobassist.Microservices.job_recommender.models import (
     JobPosting,
     JobQuery,
     ScoredPosting,

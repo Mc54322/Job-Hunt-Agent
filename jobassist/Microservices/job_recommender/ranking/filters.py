@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from jobassist.Microservices.web_scraper.models.schemas import ScoredPosting
+from jobassist.Microservices.job_recommender.models import ScoredPosting
 
 
 def top_per_company(results: list[ScoredPosting]) -> list[ScoredPosting]:

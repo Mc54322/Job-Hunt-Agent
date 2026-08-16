@@ -11,7 +11,7 @@ from jobassist.Microservices.data_cleaner.deduplication.dedupe import (
     _soft_key,
     deduplicate,
 )
-from jobassist.Microservices.web_scraper.models.schemas import JobPosting
+from jobassist.Microservices.data_cleaner.models import JobPosting
 
 # ---------------------------------------------------------------------------
 # Helpers

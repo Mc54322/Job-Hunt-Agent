@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock
 import anthropic
 import pytest
 
+from jobassist.Microservices.job_recommender.cache_client import LocalCacheClient
 from jobassist.Microservices.job_recommender.persistence.store import Store
 from jobassist.Microservices.web_scraper.models.schemas import JobPosting
 from jobassist.Microservices.web_scraper.sources.company_pages.extractor import (
@@ -90,7 +91,7 @@ def test_strip_fences_leaves_plain_json() -> None:
 @pytest.mark.asyncio
 async def test_extract_calls_llm_on_cache_miss(store: Store) -> None:
     client = _make_client(_POSTINGS_RESPONSE)
-    extractor = PageExtractor(client, store)
+    extractor = PageExtractor(client, LocalCacheClient(store))
 
     results = await extractor.extract(_COMPANY, _PAGE_URL, "some page text")
 
@@ -102,7 +103,7 @@ async def test_extract_calls_llm_on_cache_miss(store: Store) -> None:
 @pytest.mark.asyncio
 async def test_extract_returns_correct_fields(store: Store) -> None:
     client = _make_client(_POSTINGS_RESPONSE)
-    extractor = PageExtractor(client, store)
+    extractor = PageExtractor(client, LocalCacheClient(store))
 
     results = await extractor.extract(_COMPANY, _PAGE_URL, "some page text")
 
@@ -117,7 +118,7 @@ async def test_extract_returns_correct_fields(store: Store) -> None:
 @pytest.mark.asyncio
 async def test_extract_resolves_relative_url(store: Store) -> None:
     client = _make_client(_POSTINGS_RESPONSE)
-    extractor = PageExtractor(client, store)
+    extractor = PageExtractor(client, LocalCacheClient(store))
 
     results = await extractor.extract(_COMPANY, _PAGE_URL, "some page text")
 
@@ -129,7 +130,7 @@ async def test_extract_resolves_relative_url(store: Store) -> None:
 @pytest.mark.asyncio
 async def test_extract_caches_response(store: Store) -> None:
     client = _make_client(_POSTINGS_RESPONSE)
-    extractor = PageExtractor(client, store)
+    extractor = PageExtractor(client, LocalCacheClient(store))
     text = "page text content"
 
     await extractor.extract(_COMPANY, _PAGE_URL, text)
@@ -141,7 +142,7 @@ async def test_extract_caches_response(store: Store) -> None:
 @pytest.mark.asyncio
 async def test_extract_returns_cached_result(store: Store) -> None:
     client = _make_client(_POSTINGS_RESPONSE)
-    extractor = PageExtractor(client, store)
+    extractor = PageExtractor(client, LocalCacheClient(store))
     text = "page text content"
 
     first = await extractor.extract(_COMPANY, _PAGE_URL, text)
@@ -159,7 +160,7 @@ async def test_extract_returns_cached_result(store: Store) -> None:
 @pytest.mark.asyncio
 async def test_extract_returns_empty_when_no_postings(store: Store) -> None:
     client = _make_client(_EMPTY_RESPONSE)
-    extractor = PageExtractor(client, store)
+    extractor = PageExtractor(client, LocalCacheClient(store))
 
     results = await extractor.extract(_COMPANY, _PAGE_URL, "page with no jobs")
 
@@ -169,7 +170,7 @@ async def test_extract_returns_empty_when_no_postings(store: Store) -> None:
 @pytest.mark.asyncio
 async def test_extract_handles_invalid_json_gracefully(store: Store) -> None:
     client = _make_client("not valid json at all")
-    extractor = PageExtractor(client, store)
+    extractor = PageExtractor(client, LocalCacheClient(store))
 
     results = await extractor.extract(_COMPANY, _PAGE_URL, "some text")
 
@@ -179,7 +180,7 @@ async def test_extract_handles_invalid_json_gracefully(store: Store) -> None:
 @pytest.mark.asyncio
 async def test_extract_handles_schema_mismatch_gracefully(store: Store) -> None:
     client = _make_client('{"unexpected": "structure"}')
-    extractor = PageExtractor(client, store)
+    extractor = PageExtractor(client, LocalCacheClient(store))
 
     # Should return empty list (ValidationError caught internally)
     results = await extractor.extract(_COMPANY, _PAGE_URL, "some text")
@@ -204,7 +205,7 @@ async def test_company_page_fetcher_with_extractor_yields_postings(store: Store)
     from tests.test_company_page import _RICH_HTML
 
     client_llm = _make_client(_POSTINGS_RESPONSE)
-    extractor = PageExtractor(client_llm, store)
+    extractor = PageExtractor(client_llm, LocalCacheClient(store))
 
     with respx.mock:
         respx.get(_PAGE_URL).mock(return_value=httpx.Response(200, text=_RICH_HTML))

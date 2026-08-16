@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import AsyncIterator
 
-from jobassist.Microservices.web_scraper.models.schemas import JobPosting
+from jobassist.Microservices.data_cleaner.models import JobPosting
 
 # Sources that fetch directly from an ATS — higher priority than aggregators.
 # Extend this set as new ATS fetchers are added.

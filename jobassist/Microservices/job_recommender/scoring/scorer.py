@@ -8,8 +8,8 @@ import re
 
 import anthropic
 
-from jobassist.Microservices.job_recommender.persistence.store import Store, cache_key
-from jobassist.Microservices.web_scraper.models.schemas import JobPosting, ScoredPosting
+from jobassist.Microservices.job_recommender.cache_client import CacheClient, cache_key
+from jobassist.Microservices.job_recommender.models import JobPosting, ScoredPosting
 
 _MODEL = "claude-sonnet-4-6"
 
@@ -66,17 +66,17 @@ class ScoringPipeline:
         self,
         client: anthropic.AsyncAnthropic,
         resume: str,
-        store: Store,
+        cache: CacheClient,
     ) -> None:
         self._client = client
-        self._store = store
+        self._cache = cache
         self._resume_hash = hashlib.sha256(resume.encode()).hexdigest()
         self._system = _SYSTEM_TEMPLATE.format(resume=resume)
 
     async def score(self, posting: JobPosting) -> ScoredPosting:
         """Return a scored posting, using the response cache when available."""
         key = cache_key(self._resume_hash, posting.hash)
-        cached = self._store.get_cached(key)
+        cached = await self._cache.get_cached(key)
         if cached is not None:
             return self._parse(posting, cached)
 
@@ -96,7 +96,7 @@ class ScoringPipeline:
         if not isinstance(block, anthropic.types.TextBlock):
             raise ValueError(f"Unexpected content block type: {type(block)}")
         text = block.text
-        self._store.set_cached(key, text)
+        await self._cache.set_cached(key, text)
         return self._parse(posting, text)
 
     def _parse(self, posting: JobPosting, text: str) -> ScoredPosting:

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from jobassist.Microservices.job_recommender.models import JobPosting, JobQuery, ScoredPosting
 from jobassist.Microservices.job_recommender.reporting.report import _render, generate_report
-from jobassist.Microservices.web_scraper.models.schemas import JobPosting, JobQuery, ScoredPosting
 
 
 def _sp(

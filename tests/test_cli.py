@@ -7,8 +7,8 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
+from jobassist.Microservices.job_recommender.models import JobPosting, ScoredPosting
 from jobassist.Microservices.job_recommender.orchestration.cli import _render_table, app
-from jobassist.Microservices.web_scraper.models.schemas import JobPosting, ScoredPosting
 
 # ---------------------------------------------------------------------------
 # Helpers

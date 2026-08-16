@@ -10,7 +10,7 @@ from urllib.parse import urljoin
 import anthropic
 from pydantic import BaseModel, ConfigDict, ValidationError
 
-from jobassist.Microservices.job_recommender.persistence.store import Store, cache_key
+from jobassist.Microservices.web_scraper.cache_client import CacheClient, cache_key
 from jobassist.Microservices.web_scraper.models.schemas import JobPosting
 
 _MODEL = "claude-sonnet-4-6"
@@ -66,9 +66,9 @@ def _strip_fences(text: str) -> str:
 class PageExtractor:
     """Extract structured job postings from raw career-page text using Claude."""
 
-    def __init__(self, client: anthropic.AsyncAnthropic, store: Store) -> None:
+    def __init__(self, client: anthropic.AsyncAnthropic, cache: CacheClient) -> None:
         self._client = client
-        self._store = store
+        self._cache = cache
 
     async def extract(self, company: str, page_url: str, text: str) -> list[JobPosting]:
         """Return `JobPosting` objects extracted from *text* (career page main content).
@@ -78,7 +78,7 @@ class PageExtractor:
         content_hash = hashlib.sha256(text.encode()).hexdigest()
         key = cache_key("extract_v1", content_hash)
 
-        cached = self._store.get_cached(key)
+        cached = await self._cache.get_cached(key)
         if cached is not None:
             return self._parse(company, page_url, cached)
 
@@ -100,7 +100,7 @@ class PageExtractor:
             return []
 
         raw = block.text
-        self._store.set_cached(key, raw)
+        await self._cache.set_cached(key, raw)
         return self._parse(company, page_url, raw)
 
     def _parse(self, company: str, page_url: str, text: str) -> list[JobPosting]:

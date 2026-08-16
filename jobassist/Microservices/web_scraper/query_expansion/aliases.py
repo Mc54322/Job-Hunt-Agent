@@ -7,7 +7,7 @@ import re
 
 import anthropic
 
-from jobassist.Microservices.job_recommender.persistence.store import Store, cache_key
+from jobassist.Microservices.web_scraper.cache_client import CacheClient, cache_key
 
 _MODEL = "claude-sonnet-4-6"
 
@@ -27,9 +27,9 @@ def _strip_fences(text: str) -> str:
 class AliasGenerator:
     """Generate and cache role alias lists using Claude."""
 
-    def __init__(self, client: anthropic.AsyncAnthropic, store: Store) -> None:
+    def __init__(self, client: anthropic.AsyncAnthropic, cache: CacheClient) -> None:
         self._client = client
-        self._store = store
+        self._cache = cache
 
     async def generate(self, role: str, job_type: str) -> list[str]:
         """Return a list of alternative role titles for *role* + *job_type*.
@@ -38,7 +38,7 @@ class AliasGenerator:
         per unique combination.
         """
         key = cache_key("aliases_v1", role.lower(), job_type.lower())
-        cached = self._store.get_cached(key)
+        cached = await self._cache.get_cached(key)
         if cached is not None:
             return self._parse(cached)
 
@@ -56,7 +56,7 @@ class AliasGenerator:
             return []
 
         raw = block.text
-        self._store.set_cached(key, raw)
+        await self._cache.set_cached(key, raw)
         return self._parse(raw)
 
     def _parse(self, text: str) -> list[str]:

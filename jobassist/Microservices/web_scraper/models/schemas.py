@@ -1,20 +1,16 @@
-"""Core Pydantic schemas shared across the entire pipeline."""
+"""Data models owned by the web_scraper service.
+
+Own copy of the wire shapes (no shared schema import). web_scraper is the leaf
+that produces `JobPosting`s from a `JobQuery`; downstream services keep their own
+structurally-identical copies.
+"""
 
 from __future__ import annotations
 
 import hashlib
 from datetime import date
-from enum import Enum
 
 from pydantic import BaseModel, Field, computed_field
-
-
-class JobType(str, Enum):
-    FULL_TIME = "full-time"
-    PART_TIME = "part-time"
-    CONTRACT = "contract"
-    INTERNSHIP = "internship"
-    GRADUATE = "graduate"
 
 
 class JobQuery(BaseModel):
@@ -57,11 +53,3 @@ class JobPosting(BaseModel):
     @property
     def hash(self) -> str:
         return posting_hash(self.company, self.role, self.location)
-
-
-class ScoredPosting(BaseModel):
-    """A `JobPosting` with a relevance score and rationale attached."""
-
-    posting: JobPosting
-    score: float = Field(..., ge=0.0, le=1.0, description="Fit score between 0 and 1")
-    rationale: str = Field(..., description="One-paragraph explanation of the score")

@@ -1,33 +1,23 @@
-"""CLI entry point — no business logic lives here."""
+"""CLI entry point — a thin client of the job_recommender `/recommend` API.
+
+This is a temporary front-end stand-in: it collects arguments, calls the running
+services over HTTP, and renders the results. It will be replaced by the real front
+end. No business logic lives here.
+"""
 
 from __future__ import annotations
 
-import asyncio
 import os
 from pathlib import Path
-from typing import AsyncIterator, Optional
+from typing import Optional
 
-import anthropic
 import httpx
 import typer
 from rich.console import Console
 from rich.table import Table
 
-from jobassist.Microservices.data_cleaner.deduplication.dedupe import deduplicate
-from jobassist.Microservices.job_recommender.persistence.store import Store
-from jobassist.Microservices.job_recommender.ranking.filters import top_per_company
+from jobassist.Microservices.job_recommender.models import JobQuery, ScoredPosting
 from jobassist.Microservices.job_recommender.reporting.report import generate_report
-from jobassist.Microservices.job_recommender.scoring.scorer import ScoringPipeline
-from jobassist.Microservices.web_scraper.contracts.base import Source
-from jobassist.Microservices.web_scraper.models.schemas import JobPosting, JobQuery, ScoredPosting
-from jobassist.Microservices.web_scraper.query_expansion.aliases import AliasGenerator
-from jobassist.Microservices.web_scraper.query_expansion.index import (
-    KNOWN_INDICES,
-    companies_for_index,
-)
-from jobassist.Microservices.web_scraper.sources.aggregators.adzuna.adzuna import AdzunaFetcher
-from jobassist.Microservices.web_scraper.sources.aggregators.reed.reed import ReedFetcher
-from jobassist.Microservices.web_scraper.sources.ats.greenhouse.greenhouse import GreenhouseFetcher
 
 app = typer.Typer(
     name="jobassist",
@@ -36,6 +26,9 @@ app = typer.Typer(
 )
 
 _console = Console()
+
+_JOB_RECOMMENDER_URL = os.environ.get("JOB_RECOMMENDER_URL", "http://localhost:8003")
+_WEB_SCRAPER_URL = os.environ.get("WEB_SCRAPER_URL", "http://localhost:8001")
 
 
 @app.callback()
@@ -53,12 +46,7 @@ def _score_colour(score: float) -> str:
 
 def _render_table(results: list[ScoredPosting]) -> Table:
     """Build a Rich table from *results* sorted by score descending."""
-    table = Table(
-        show_header=True,
-        header_style="bold cyan",
-        show_lines=False,
-        expand=True,
-    )
+    table = Table(show_header=True, header_style="bold cyan", show_lines=False, expand=True)
     table.add_column("#", style="dim", width=3, justify="right")
     table.add_column("Score", width=6, justify="center")
     table.add_column("Company", min_width=12)
@@ -84,59 +72,12 @@ def _render_table(results: list[ScoredPosting]) -> Table:
     return table
 
 
-async def _run_pipeline(
-    query: JobQuery,
-    resume: str,
-    adzuna_id: str | None,
-    adzuna_key: str | None,
-    reed_key: str | None,
-    db_path: str,
-    *,
-    expand_aliases: bool = True,
-) -> list[ScoredPosting]:
-    """Fetch, deduplicate, and score postings for *query* (and role aliases when enabled)."""
-    store = Store(db_path)
-    anthropic_client = anthropic.AsyncAnthropic()
-    scorer = ScoringPipeline(anthropic_client, resume, store)
-
-    # Build the list of role variants to search (original + aliases)
-    roles = [query.role]
-    if expand_aliases:
-        alias_gen = AliasGenerator(anthropic_client, store)
-        aliases = await alias_gen.generate(query.role, query.job_type)
-        roles.extend(aliases)
-
-    async with httpx.AsyncClient() as http:
-        sources: list[Source] = []
-
-        if query.companies:
-            sources.append(GreenhouseFetcher(http))
-
-        if adzuna_id and adzuna_key:
-            sources.append(AdzunaFetcher(http, adzuna_id, adzuna_key))
-
-        if reed_key:
-            sources.append(ReedFetcher(http, reed_key))
-
-        async def _merged() -> AsyncIterator[JobPosting]:
-            for role_variant in roles:
-                variant_query = query.model_copy(update={"role": role_variant})
-                for source in sources:
-                    async for posting in await source.search(variant_query):
-                        yield posting
-
-        scored: list[ScoredPosting] = []
-        async for posting in deduplicate(_merged()):
-            _console.print(
-                f"  Scoring [bold]{posting.company}[/bold] — {posting.role}…",
-                highlight=False,
-            )
-            sp = await scorer.score(posting)
-            scored.append(sp)
-            store.save(posting)
-
-    store.close()
-    return scored
+def _resolve_index(index: str) -> list[str]:
+    """Resolve an index name to its constituent companies via the web_scraper API."""
+    resp = httpx.get(f"{_WEB_SCRAPER_URL}/companies/{index}", timeout=30.0)
+    resp.raise_for_status()
+    companies: list[str] = resp.json()["companies"]
+    return companies
 
 
 @app.command()
@@ -160,33 +101,18 @@ def search(
         envvar="JOBASSIST_RESUME",
     ),
     report: Optional[Path] = typer.Option(
-        None,
-        "--report",
-        help="Write a Markdown report to this path.",
+        None, "--report", help="Write a Markdown report to this path."
     ),
     index: Optional[str] = typer.Option(
-        None,
-        "--index",
-        help=(
-            f"Expand companies from a stock index. "
-            f"Available: {', '.join(sorted(KNOWN_INDICES))}"
-        ),
+        None, "--index", help="Expand companies from a stock index (e.g. 'ftse100')."
     ),
     aliases: bool = typer.Option(
-        True,
-        "--aliases/--no-aliases",
-        help="Expand role to synonyms before searching (uses one LLM call, cached).",
+        True, "--aliases/--no-aliases", help="Expand role to synonyms before searching."
     ),
     one_per_company: bool = typer.Option(
         True,
         "--one-per-company/--all-per-company",
         help="Show only the highest-scored posting per company (default: on).",
-    ),
-    db: str = typer.Option(
-        str(Path.home() / ".jobassist" / "data.db"),
-        "--db",
-        help="Path to the SQLite store",
-        envvar="JOBASSIST_DB",
     ),
 ) -> None:
     """Search for job postings and score them against your resume."""
@@ -196,18 +122,13 @@ def search(
 
     resume_text = resume.read_text()
 
-    adzuna_id = os.environ.get("ADZUNA_APP_ID")
-    adzuna_key = os.environ.get("ADZUNA_APP_KEY")
-    reed_key = os.environ.get("REED_API_KEY")
-
-    # Resolve companies: explicit --company flags + optional --index expansion
     resolved_companies: list[str] = list(company or [])
     if index is not None:
         try:
-            resolved_companies.extend(companies_for_index(index))
-        except ValueError as exc:
-            _console.print(f"[red]Error:[/red] {exc}")
-            raise typer.Exit(1)
+            resolved_companies.extend(_resolve_index(index))
+        except httpx.HTTPError as exc:
+            _console.print(f"[red]Error:[/red] could not resolve index '{index}': {exc}")
+            raise typer.Exit(1) from exc
 
     query = JobQuery(
         role=role,
@@ -224,19 +145,26 @@ def search(
         _console.print(f"Companies: {', '.join(query.companies)}")
     _console.print()
 
-    has_aggregator = (adzuna_id and adzuna_key) or reed_key
-    if not has_aggregator and not query.companies:
-        _console.print("[red]Error:[/red] No sources available. Set Adzuna or Reed credentials "
-                       "or supply at least one --company.")
-        raise typer.Exit(1)
+    try:
+        resp = httpx.post(
+            f"{_JOB_RECOMMENDER_URL}/recommend",
+            json={
+                "query": query.model_dump(mode="json"),
+                "resume": resume_text,
+                "one_per_company": one_per_company,
+                "expand_aliases": aliases,
+            },
+            timeout=300.0,
+        )
+        resp.raise_for_status()
+    except httpx.HTTPError as exc:
+        _console.print(
+            f"[red]Error:[/red] could not reach job_recommender at "
+            f"{_JOB_RECOMMENDER_URL}: {exc}"
+        )
+        raise typer.Exit(1) from exc
 
-    results = asyncio.run(
-        _run_pipeline(query, resume_text, adzuna_id, adzuna_key, reed_key, db,
-                      expand_aliases=aliases)
-    )
-
-    if one_per_company:
-        results = top_per_company(results)
+    results = [ScoredPosting.model_validate(r) for r in resp.json()["results"]]
 
     if not results:
         _console.print("No postings found.")

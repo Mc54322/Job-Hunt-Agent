@@ -8,7 +8,7 @@ import types
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from jobassist.Microservices.web_scraper.models.schemas import JobPosting
+from jobassist.Microservices.job_recommender.models import JobPosting
 
 if TYPE_CHECKING:
     pass

@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date
 from pathlib import Path
 
-from jobassist.Microservices.web_scraper.models.schemas import JobQuery, ScoredPosting
+from jobassist.Microservices.job_recommender.models import JobQuery, ScoredPosting
 
 
 def generate_report(

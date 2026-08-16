@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass
 
 import anthropic
 
-from jobassist.Microservices.job_recommender.persistence.store import Store, cache_key
-from jobassist.Microservices.web_scraper.models.schemas import JobPosting
+from jobassist.Microservices.cv_feedback_provider.cache_client import CacheClient, cache_key
+from jobassist.Microservices.cv_feedback_provider.models import DraftedApplication, JobPosting
 
 _MODEL = "claude-sonnet-4-6"
 
@@ -50,12 +49,6 @@ Description:
 Return JSON: {{"bullets": ["<bullet 1>", "<bullet 2>", ...]}}"""
 
 
-@dataclass
-class DraftedApplication:
-    cover_letter: str
-    bullets: list[str]
-
-
 def _strip_fences(text: str) -> str:
     text = text.strip()
     if text.startswith("```"):
@@ -67,10 +60,10 @@ def _strip_fences(text: str) -> str:
 class CoverLetterDrafter:
     """Drafts cover letters and tailored CV bullets from resume + posting facts only."""
 
-    def __init__(self, client: anthropic.AsyncAnthropic, resume: str, store: Store) -> None:
+    def __init__(self, client: anthropic.AsyncAnthropic, resume: str, cache: CacheClient) -> None:
         self._client = client
         self._resume = resume
-        self._store = store
+        self._cache = cache
 
     async def draft(self, posting: JobPosting) -> DraftedApplication:
         """Return a cover letter and bullet points for *posting*.
@@ -83,7 +76,7 @@ class CoverLetterDrafter:
         resume_hash = hashlib.sha256(self._resume.encode()).hexdigest()
         ck = cache_key("draft_v1", resume_hash, posting.hash)
 
-        cached = self._store.get_cached(ck)
+        cached = await self._cache.get_cached(ck)
         if cached is not None:
             data = json.loads(cached)
             return DraftedApplication(
@@ -113,7 +106,7 @@ class CoverLetterDrafter:
         bullet_list = self._extract_bullets(bullets)
 
         result = DraftedApplication(cover_letter=cl_text, bullets=bullet_list)
-        self._store.set_cached(ck, json.dumps({
+        await self._cache.set_cached(ck, json.dumps({
             "cover_letter": cl_text,
             "bullets": bullet_list,
         }))

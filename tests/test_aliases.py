@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock
 import anthropic
 import pytest
 
+from jobassist.Microservices.job_recommender.cache_client import LocalCacheClient
 from jobassist.Microservices.job_recommender.persistence.store import Store
 from jobassist.Microservices.web_scraper.query_expansion.aliases import (
     AliasGenerator,
@@ -66,7 +67,7 @@ def test_strip_fences_plain_passthrough() -> None:
 @pytest.mark.asyncio
 async def test_generate_calls_llm_on_cache_miss(store: Store) -> None:
     client = _make_client(_ALIASES_RESPONSE)
-    gen = AliasGenerator(client, store)
+    gen = AliasGenerator(client, LocalCacheClient(store))
 
     aliases = await gen.generate(_ROLE, _JOB_TYPE)
 
@@ -78,7 +79,7 @@ async def test_generate_calls_llm_on_cache_miss(store: Store) -> None:
 @pytest.mark.asyncio
 async def test_generate_returns_strings(store: Store) -> None:
     client = _make_client(_ALIASES_RESPONSE)
-    gen = AliasGenerator(client, store)
+    gen = AliasGenerator(client, LocalCacheClient(store))
 
     aliases = await gen.generate(_ROLE, _JOB_TYPE)
 
@@ -89,7 +90,7 @@ async def test_generate_returns_strings(store: Store) -> None:
 async def test_generate_aliases_do_not_include_original(store: Store) -> None:
     # LLM response includes only alternatives (original is excluded by prompt)
     client = _make_client(_ALIASES_RESPONSE)
-    gen = AliasGenerator(client, store)
+    gen = AliasGenerator(client, LocalCacheClient(store))
 
     aliases = await gen.generate(_ROLE, _JOB_TYPE)
 
@@ -104,7 +105,7 @@ async def test_generate_aliases_do_not_include_original(store: Store) -> None:
 @pytest.mark.asyncio
 async def test_generate_uses_cache_on_second_call(store: Store) -> None:
     client = _make_client(_ALIASES_RESPONSE)
-    gen = AliasGenerator(client, store)
+    gen = AliasGenerator(client, LocalCacheClient(store))
 
     await gen.generate(_ROLE, _JOB_TYPE)
     await gen.generate(_ROLE, _JOB_TYPE)
@@ -115,7 +116,7 @@ async def test_generate_uses_cache_on_second_call(store: Store) -> None:
 @pytest.mark.asyncio
 async def test_generate_cache_is_case_insensitive(store: Store) -> None:
     client = _make_client(_ALIASES_RESPONSE)
-    gen = AliasGenerator(client, store)
+    gen = AliasGenerator(client, LocalCacheClient(store))
 
     await gen.generate("Software Engineer", "full-time")
     await gen.generate("software engineer", "FULL-TIME")
@@ -131,8 +132,8 @@ async def test_different_roles_are_independent(store: Store) -> None:
     client_a = _make_client(response_a)
     client_b = _make_client(response_b)
 
-    gen_a = AliasGenerator(client_a, store)
-    gen_b = AliasGenerator(client_b, store)
+    gen_a = AliasGenerator(client_a, LocalCacheClient(store))
+    gen_b = AliasGenerator(client_b, LocalCacheClient(store))
 
     aliases_a = await gen_a.generate("Software Engineer", "full-time")
     aliases_b = await gen_b.generate("Data Analyst", "full-time")
@@ -149,7 +150,7 @@ async def test_different_roles_are_independent(store: Store) -> None:
 @pytest.mark.asyncio
 async def test_generate_returns_empty_on_invalid_json(store: Store) -> None:
     client = _make_client("not json at all")
-    gen = AliasGenerator(client, store)
+    gen = AliasGenerator(client, LocalCacheClient(store))
 
     aliases = await gen.generate(_ROLE, _JOB_TYPE)
 
@@ -159,7 +160,7 @@ async def test_generate_returns_empty_on_invalid_json(store: Store) -> None:
 @pytest.mark.asyncio
 async def test_generate_returns_empty_on_non_list_json(store: Store) -> None:
     client = _make_client('{"unexpected": "object"}')
-    gen = AliasGenerator(client, store)
+    gen = AliasGenerator(client, LocalCacheClient(store))
 
     aliases = await gen.generate(_ROLE, _JOB_TYPE)
 
@@ -169,7 +170,7 @@ async def test_generate_returns_empty_on_non_list_json(store: Store) -> None:
 @pytest.mark.asyncio
 async def test_generate_filters_empty_strings(store: Store) -> None:
     client = _make_client('["Backend Engineer", "", "Python Developer"]')
-    gen = AliasGenerator(client, store)
+    gen = AliasGenerator(client, LocalCacheClient(store))
 
     aliases = await gen.generate(_ROLE, _JOB_TYPE)
 

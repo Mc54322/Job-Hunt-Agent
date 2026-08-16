@@ -15,7 +15,7 @@ import re
 from dataclasses import dataclass
 from datetime import date
 
-from jobassist.Microservices.web_scraper.models.schemas import JobPosting
+from jobassist.Microservices.data_cleaner.models import JobPosting
 
 # Seniority tiers ordered from least to most competitive
 _SENIOR_RE = re.compile(
