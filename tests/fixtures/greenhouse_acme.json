@@ -1,0 +1,28 @@
+{
+  "jobs": [
+    {
+      "id": 1001,
+      "title": "Software Engineer",
+      "location": {"name": "London, UK"},
+      "absolute_url": "https://boards.greenhouse.io/acme/jobs/1001",
+      "updated_at": "2024-01-15T10:00:00.000Z",
+      "content": "<p>Build great things at Acme.</p>"
+    },
+    {
+      "id": 1002,
+      "title": "Senior Software Engineer",
+      "location": {"name": "Remote"},
+      "absolute_url": "https://boards.greenhouse.io/acme/jobs/1002",
+      "updated_at": "2024-01-14T09:00:00.000Z",
+      "content": "<p>Lead engineering work at Acme.</p>"
+    },
+    {
+      "id": 1003,
+      "title": "Data Analyst",
+      "location": {"name": "London, UK"},
+      "absolute_url": "https://boards.greenhouse.io/acme/jobs/1003",
+      "updated_at": "2024-01-13T08:00:00.000Z",
+      "content": "<p>Analyse data at Acme.</p>"
+    }
+  ]
+}

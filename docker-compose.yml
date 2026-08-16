@@ -1,0 +1,54 @@
+# Runs the four JobAssist microservices as independent containers on one network.
+# Secrets come from the environment / a .env file (never commit real keys).
+#   docker compose up --build
+services:
+  web_scraper:
+    build:
+      context: .
+      dockerfile: jobassist/Microservices/web_scraper/Dockerfile
+    ports:
+      - "8001:8001"
+    environment:
+      JOB_RECOMMENDER_URL: http://job_recommender:8003
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ADZUNA_APP_ID: ${ADZUNA_APP_ID:-}
+      ADZUNA_APP_KEY: ${ADZUNA_APP_KEY:-}
+      REED_API_KEY: ${REED_API_KEY:-}
+    depends_on:
+      - job_recommender
+
+  data_cleaner:
+    build:
+      context: .
+      dockerfile: jobassist/Microservices/data_cleaner/Dockerfile
+    ports:
+      - "8002:8002"
+
+  job_recommender:
+    build:
+      context: .
+      dockerfile: jobassist/Microservices/job_recommender/Dockerfile
+    ports:
+      - "8003:8003"
+    environment:
+      WEB_SCRAPER_URL: http://web_scraper:8001
+      DATA_CLEANER_URL: http://data_cleaner:8002
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      JOBASSIST_DB: /data/data.db
+    volumes:
+      - jobassist_data:/data
+
+  cv_feedback_provider:
+    build:
+      context: .
+      dockerfile: jobassist/Microservices/cv_feedback_provider/Dockerfile
+    ports:
+      - "8004:8004"
+    environment:
+      JOB_RECOMMENDER_URL: http://job_recommender:8003
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    depends_on:
+      - job_recommender
+
+volumes:
+  jobassist_data:
