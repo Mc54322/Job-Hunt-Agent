@@ -9,19 +9,21 @@ import re
 # available.
 
 _URL_RULES: list[tuple[re.Pattern[str], str]] = [
-    (re.compile(r"boards\.greenhouse\.io", re.I), "greenhouse"),
+    (re.compile(r"boards(?:\.eu)?\.greenhouse\.io", re.I), "greenhouse"),
     (re.compile(r"jobs\.lever\.co", re.I), "lever"),
     (re.compile(r"jobs\.ashbyhq\.com", re.I), "ashby"),
     (re.compile(r"smartrecruiters\.com", re.I), "smartrecruiters"),
     (re.compile(r"teamtailor\.com", re.I), "teamtailor"),
+    (re.compile(r"apply\.workable\.com", re.I), "workable"),
     (re.compile(r"reed\.co\.uk", re.I), "reed"),
 ]
 
 _HTML_RULES: list[tuple[re.Pattern[str], str]] = [
-    (re.compile(r"boards\.greenhouse\.io", re.I), "greenhouse"),
+    (re.compile(r"boards(?:\.eu)?\.greenhouse\.io", re.I), "greenhouse"),
     (re.compile(r"jobs\.lever\.co", re.I), "lever"),
     (re.compile(r"jobs\.ashbyhq\.com", re.I), "ashby"),
     (re.compile(r"smartrecruiters\.com", re.I), "smartrecruiters"),
+    (re.compile(r"apply\.workable\.com", re.I), "workable"),
 ]
 
 

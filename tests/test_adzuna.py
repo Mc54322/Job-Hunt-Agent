@@ -14,6 +14,8 @@ from jobassist.Microservices.web_scraper.models.schemas import JobPosting, JobQu
 from jobassist.Microservices.web_scraper.sources.aggregators.adzuna.adzuna import (
     AdzunaFetcher,
     _format_salary,
+    adzuna_where,
+    employer_matches,
 )
 
 _FIXTURES = Path(__file__).parent / "fixtures"
@@ -164,3 +166,73 @@ async def test_adzuna_missing_salary_stored_as_none() -> None:
 
 def test_adzuna_satisfies_source_protocol() -> None:
     assert isinstance(_make_fetcher(), Source)
+
+
+# ---------------------------------------------------------------------------
+# Employer mode (company filter)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("display", "employer", "expected"),
+    [
+        ("Barclays", "Barclays", True),
+        ("Lloyds Bank", "Lloyds Banking Group", True),
+        ("JPMorganChase", "JPMorgan Chase", True),
+        ("London Stock Exchange Group", "London Stock Exchange Group", True),
+        ("Conduct", "Financial Conduct Authority", False),
+        ("Citizens Advice", "Citi", False),
+        ("Hays", "Barclays", False),
+        ("", "Barclays", False),
+    ],
+)
+def test_employer_matches(display: str, employer: str, expected: bool) -> None:
+    assert employer_matches(display, employer) is expected
+
+
+def _job(company: str) -> dict:  # type: ignore[type-arg]
+    return {
+        "title": "Data Analyst",
+        "company": {"display_name": company},
+        "location": {"display_name": "London"},
+        "redirect_url": f"https://adzuna.example/{company}",
+        "created": "2026-10-01T00:00:00Z",
+    }
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_employer_filter_sent_and_lookalikes_dropped() -> None:
+    route = respx.get(_PAGE1_URL).mock(
+        return_value=httpx.Response(
+            200, json={"results": [_job("Financial Conduct Authority"), _job("Conduct")]}
+        )
+    )
+    fetcher = AdzunaFetcher(
+        httpx.AsyncClient(),
+        app_id="test-id",
+        app_key="test-key",
+        employer="Financial Conduct Authority",
+        employer_label="FCA",
+    )
+    results = await _collect(fetcher, _QUERY)
+
+    assert route.calls[0].request.url.params["company"] == "Financial Conduct Authority"
+    assert [p.company for p in results] == ["FCA"]
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_no_company_param_without_employer() -> None:
+    route = respx.get(_PAGE1_URL).mock(return_value=httpx.Response(200, json=_EMPTY))
+    await _collect(_make_fetcher(), _QUERY)
+    assert "company" not in route.calls[0].request.url.params
+
+
+@pytest.mark.parametrize(
+    ("location", "where"),
+    [("UK", None), ("United Kingdom", None), ("London, UK", "London"), ("Leeds", "Leeds")],
+)
+def test_adzuna_where_drops_country_level_locations(location: str, where: str | None) -> None:
+    # Adzuna answers where=UK plus a company filter with HTTP 503.
+    assert adzuna_where(location) == where

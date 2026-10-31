@@ -12,15 +12,15 @@ from jobassist.Microservices.web_scraper.models.schemas import JobPosting, JobQu
 
 @runtime_checkable
 class _Extractor(Protocol):
-    async def extract(self, company: str, page_url: str, text: str) -> list[JobPosting]: ...
+    async def extract(
+        self, company: str, page_url: str, text: str, role_terms: list[str] | None = None
+    ) -> list[JobPosting]: ...
 
 _USER_AGENT = "JobAssist/0.1 (personal job search; https://github.com/job-hunt-agent)"
 _MIN_CONTENT_CHARS = 200
 
 try:
-    from playwright.async_api import (  # type: ignore[import-not-found]
-        async_playwright as _async_playwright,
-    )
+    from playwright.async_api import async_playwright as _async_playwright
 
     _PLAYWRIGHT_AVAILABLE = True
 except ImportError:

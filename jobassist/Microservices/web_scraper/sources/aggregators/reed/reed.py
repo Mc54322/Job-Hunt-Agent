@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import random
+import re
 from datetime import date, datetime
 from typing import Any, AsyncIterator
 
@@ -16,6 +17,9 @@ _SEARCH_URL = "https://www.reed.co.uk/api/1.0/search"
 _USER_AGENT = "JobAssist/0.1 (personal job search; https://github.com/job-hunt-agent)"
 _RATE_DELAY = 1.0
 _RATE_JITTER = 0.2
+_COUNTRY_SUFFIX = re.compile(
+    r",\s*(uk|u\.k\.|gb|great britain|united kingdom|england|scotland|wales)\s*$", re.I
+)
 
 
 def _auth_header(api_key: str) -> str:
@@ -43,6 +47,12 @@ def _format_salary(min_val: float | None, max_val: float | None) -> str | None:
     if min_val is not None:
         return f"£{int(min_val):,}+"
     return f"up to £{int(max_val):,}"  # type: ignore[arg-type]
+
+
+def _reed_location(location: str) -> str:
+    """Strip a trailing country — Reed treats ``"London, UK"`` as an unknown place and
+    silently falls back to unrelated (mostly North-West) results."""
+    return _COUNTRY_SUFFIX.sub("", location).strip() or location
 
 
 def _to_posting(job: dict[str, Any]) -> JobPosting:
@@ -90,7 +100,7 @@ class ReedFetcher:
                     "resultsToSkip": skip,
                 }
                 if query.location:
-                    params["locationName"] = query.location
+                    params["locationName"] = _reed_location(query.location)
 
                 try:
                     resp = await client.get(

@@ -8,6 +8,7 @@ import re
 import anthropic
 
 from jobassist.Microservices.web_scraper.cache_client import CacheClient, cache_key
+from jobassist.Microservices.web_scraper.costs.meter import CostMeter, metered_create
 
 _MODEL = "claude-sonnet-4-6"
 
@@ -27,9 +28,16 @@ def _strip_fences(text: str) -> str:
 class AliasGenerator:
     """Generate and cache role alias lists using Claude."""
 
-    def __init__(self, client: anthropic.AsyncAnthropic, cache: CacheClient) -> None:
+    def __init__(
+        self,
+        client: anthropic.AsyncAnthropic,
+        cache: CacheClient,
+        *,
+        meter: CostMeter | None = None,
+    ) -> None:
         self._client = client
         self._cache = cache
+        self._meter = meter
 
     async def generate(self, role: str, job_type: str) -> list[str]:
         """Return a list of alternative role titles for *role* + *job_type*.
@@ -42,7 +50,11 @@ class AliasGenerator:
         if cached is not None:
             return self._parse(cached)
 
-        response = await self._client.messages.create(
+        response = await metered_create(
+            self._client,
+            self._meter,
+            "",
+            "similar job titles",
             model=_MODEL,
             max_tokens=256,
             system=_SYSTEM_PROMPT,

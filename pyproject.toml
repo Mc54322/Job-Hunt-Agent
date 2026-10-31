@@ -14,7 +14,11 @@ dependencies = [
     "anthropic>=0.97.0",
     "fastapi>=0.115.0",
     "httpx>=0.28.1",
+    "openpyxl>=3.1.5",
+    "playwright>=1.64.1",
     "pydantic>=2.13.3",
+    "pypdf>=6.21.4",
+    "python-docx>=1.2.0",
     "selectolax>=0.4.7",
     "trafilatura>=2.0.0",
     "typer>=0.25.1",
@@ -28,6 +32,7 @@ dev = [
     "pytest-asyncio>=1.3.0",
     "respx>=0.23.1",
     "ruff>=0.15.12",
+    "types-openpyxl>=3.1.5.20261017",
 ]
 
 [project.scripts]
@@ -36,6 +41,9 @@ jobassist-web-scraper = "jobassist.Microservices.web_scraper.api:main"
 jobassist-data-cleaner = "jobassist.Microservices.data_cleaner.api:main"
 jobassist-job-recommender = "jobassist.Microservices.job_recommender.api:main"
 jobassist-cv-feedback = "jobassist.Microservices.cv_feedback_provider.api:main"
+jobassist-frontend = "jobassist.Microservices.frontend.api:main"
+jobassist-list-builder = "jobassist.Microservices.list_builder.api:main"
+jobassist-make-list = "jobassist.Microservices.list_builder.cli:main"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

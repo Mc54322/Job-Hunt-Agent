@@ -61,25 +61,46 @@ def test_slugify_single_word() -> None:
 # ---------------------------------------------------------------------------
 
 
+def _q(role: str, aliases: list[str] | None = None) -> JobQuery:
+    return JobQuery(role=role, job_type="full-time", role_aliases=aliases or [])
+
+
 def test_role_matches_exact() -> None:
-    assert _role_matches("Software Engineer", "Software Engineer")
+    assert _role_matches("Software Engineer", _q("Software Engineer"))
 
 
 def test_role_matches_senior_prefix() -> None:
-    assert _role_matches("Senior Software Engineer", "Software Engineer")
+    assert _role_matches("Senior Software Engineer", _q("Software Engineer"))
 
 
 def test_role_matches_case_insensitive() -> None:
-    assert _role_matches("SOFTWARE ENGINEER", "software engineer")
+    assert _role_matches("SOFTWARE ENGINEER", _q("software engineer"))
 
 
 def test_role_no_match() -> None:
-    assert not _role_matches("Data Analyst", "Software Engineer")
+    assert not _role_matches("Data Analyst", _q("Software Engineer"))
+
+
+def test_role_matches_alias() -> None:
+    assert _role_matches("Junior Developer", _q("Software Engineer", ["Developer"]))
 
 
 # ---------------------------------------------------------------------------
 # Greenhouse fetcher
 # ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_greenhouse_uses_slug_override() -> None:
+    route = respx.get("https://boards-api.greenhouse.io/v1/boards/ocadogroup/jobs?content=true").mock(
+        return_value=httpx.Response(200, json=_GH_FIXTURE)
+    )
+    query = JobQuery(role="Software Engineer", job_type="full-time", companies=["Ocado Technology"])
+    fetcher = GreenhouseFetcher(_make_client(), slugs={"Ocado Technology": "ocadogroup"})
+    results = await _collect(fetcher, query)
+    assert route.call_count == 1
+    assert results and all(p.company == "Ocado Technology" for p in results)
 
 
 @pytest.mark.asyncio

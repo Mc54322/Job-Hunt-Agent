@@ -13,8 +13,22 @@ from jobassist.Microservices.web_scraper import api
 from jobassist.Microservices.web_scraper.api import app, get_anthropic
 
 
+class _MemoryCache:
+    def __init__(self) -> None:
+        self.data: dict[str, str] = {}
+
+    async def get_cached(self, key: str) -> str | None:
+        return self.data.get(key)
+
+    async def set_cached(self, key: str, value: str) -> None:
+        self.data[key] = value
+
+
 @pytest.fixture
-def client() -> Iterator[TestClient]:
+def client(monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClient]:
+    # Never reach a real cache service that happens to be running locally.
+    cache = _MemoryCache()
+    monkeypatch.setattr(api, "_cache", lambda request: cache)
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()

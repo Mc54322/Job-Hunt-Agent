@@ -28,7 +28,7 @@ _JUNIOR_RE = re.compile(
 # ATS sources draw more targeted applications than broad aggregators
 _ATS_SOURCES = frozenset({
     "greenhouse", "lever", "ashby",
-    "smartrecruiters", "teamtailor",
+    "smartrecruiters", "teamtailor", "workable",
 })
 
 # Baseline estimates per seniority bucket (annual median applicants)

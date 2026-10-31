@@ -11,6 +11,11 @@ import anthropic
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 from jobassist.Microservices.web_scraper.cache_client import CacheClient, cache_key
+from jobassist.Microservices.web_scraper.costs.meter import (
+    CostMeter,
+    estimate_input_cost,
+    metered_create,
+)
 from jobassist.Microservices.web_scraper.models.schemas import JobPosting
 
 _MODEL = "claude-sonnet-4-6"
@@ -24,8 +29,9 @@ Return a JSON object (no markdown fences) with this exact schema:
   "postings": [
     {
       "role": "job title as written on the page",
-      "location": "city / region / 'Remote' / 'Hybrid' — or 'Unknown' if not stated",
-      "url": "absolute URL to view or apply for the job (construct from base URL if relative)",
+      "location": "city / region / 'Remote' — add the country when the page makes it clear \
+(e.g. 'Exeter, United Kingdom'); 'Unknown' if not stated",
+      "url": "URL to view or apply for the job, copied from the page's LINKS list",
       "salary_raw": "salary string exactly as it appears, or null",
       "description": "one or two sentences describing the role, or null"
     }
@@ -33,7 +39,13 @@ Return a JSON object (no markdown fences) with this exact schema:
 }
 
 If no postings are found return {"postings": []}.
-Only include genuine open positions — ignore expired, draft, or duplicate listings."""
+Only include genuine open positions — ignore expired, draft, or duplicate listings.
+Never invent a URL: use one that appears in the page text or LINKS, or the page URL \
+itself if the job has no link of its own."""
+
+# Bounds cost per page (~12k tokens). Careers listing pages fit well within this.
+_MAX_PAGE_CHARS = 48_000
+_MAX_OUTPUT_TOKENS = 4096
 
 
 class _RawPosting(BaseModel):
@@ -66,31 +78,59 @@ def _strip_fences(text: str) -> str:
 class PageExtractor:
     """Extract structured job postings from raw career-page text using Claude."""
 
-    def __init__(self, client: anthropic.AsyncAnthropic, cache: CacheClient) -> None:
+    def __init__(
+        self,
+        client: anthropic.AsyncAnthropic,
+        cache: CacheClient,
+        *,
+        meter: CostMeter | None = None,
+    ) -> None:
         self._client = client
         self._cache = cache
+        self._meter = meter
 
-    async def extract(self, company: str, page_url: str, text: str) -> list[JobPosting]:
+    async def extract(
+        self,
+        company: str,
+        page_url: str,
+        text: str,
+        role_terms: list[str] | None = None,
+    ) -> list[JobPosting]:
         """Return `JobPosting` objects extracted from *text* (career page main content).
 
-        Results are cached by content hash so the same page is never sent twice.
+        With *role_terms*, only jobs matching those titles are requested — writing out
+        every job on a big page is the expensive part. Results are cached by content
+        hash (+ terms) so the same page is never sent twice.
         """
         content_hash = hashlib.sha256(text.encode()).hexdigest()
-        key = cache_key("extract_v1", content_hash)
+        terms_key = "|".join(sorted(t.lower() for t in role_terms)) if role_terms else "*"
+        key = cache_key("extract_v4", content_hash, terms_key)
 
         cached = await self._cache.get_cached(key)
         if cached is not None:
             return self._parse(company, page_url, cached)
 
+        wanted = (
+            "Only include jobs whose title matches one of these (or is clearly the same "
+            f"kind of role): {', '.join(role_terms)}\n"
+            if role_terms
+            else ""
+        )
         user_msg = (
             f"Company: {company}\n"
-            f"Page URL: {page_url}\n\n"
-            f"Page text:\n{text[:8000]}"
+            f"Page URL: {page_url}\n"
+            f"{wanted}\n"
+            f"Page text:\n{text[:_MAX_PAGE_CHARS]}"
         )
 
-        response = await self._client.messages.create(
+        response = await metered_create(
+            self._client,
+            self._meter,
+            company,
+            "reading website",
+            estimate=estimate_input_cost(len(user_msg) + len(_SYSTEM_PROMPT), 1000),
             model=_MODEL,
-            max_tokens=2048,
+            max_tokens=_MAX_OUTPUT_TOKENS,
             system=_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_msg}],
         )

@@ -72,6 +72,11 @@ class Store:
         cur = self._conn.execute("SELECT data FROM postings ORDER BY saved_at")
         return [JobPosting.model_validate_json(row[0]) for row in cur.fetchall()]
 
+    def saved_postings(self) -> list[tuple[JobPosting, str]]:
+        """Return every stored posting with when it was first found, newest first."""
+        cur = self._conn.execute("SELECT data, saved_at FROM postings ORDER BY saved_at DESC")
+        return [(JobPosting.model_validate_json(row[0]), str(row[1])) for row in cur.fetchall()]
+
     # --- Response cache ---
 
     def get_cached(self, key: str) -> str | None:

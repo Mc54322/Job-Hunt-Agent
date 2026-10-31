@@ -15,6 +15,7 @@ from jobassist.Microservices.web_scraper.sources.aggregators.reed.reed import (
     _auth_header,
     _format_salary,
     _parse_date,
+    _reed_location,
 )
 
 _FIXTURES = Path(__file__).parent / "fixtures"
@@ -275,3 +276,28 @@ async def test_paginates_when_more_results_available(client: httpx.AsyncClient) 
     results = [p async for p in await fetcher.search(_QUERY)]
 
     assert len(results) == 4
+
+
+# ---------------------------------------------------------------------------
+# Location normalisation
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("given", "sent"),
+    [("London, UK", "London"), ("Leeds, United Kingdom", "Leeds"), ("London", "London"),
+     ("UK", "UK")],
+)
+def test_reed_location_strips_country(given: str, sent: str) -> None:
+    assert _reed_location(given) == sent
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_country_suffix_not_sent_to_reed(client: httpx.AsyncClient) -> None:
+    # Reed ignores "London, UK" and returns unrelated North-West results.
+    route = respx.get(_SEARCH_URL).mock(return_value=httpx.Response(200, json={"results": []}))
+    query = _QUERY.model_copy(update={"location": "London, UK"})
+    fetcher = ReedFetcher(client, _API_KEY)
+    _ = [p async for p in await fetcher.search(query)]
+    assert route.calls[0].request.url.params["locationName"] == "London"

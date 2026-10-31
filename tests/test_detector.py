@@ -29,6 +29,14 @@ def test_detects_smartrecruiters_from_url() -> None:
     assert detect_ats("https://jobs.smartrecruiters.com/Acme/123") == "smartrecruiters"
 
 
+def test_detects_workable_from_url() -> None:
+    assert detect_ats("https://apply.workable.com/starling-bank/") == "workable"
+
+
+def test_detects_new_greenhouse_host_from_url() -> None:
+    assert detect_ats("https://job-boards.eu.greenhouse.io/acme") == "greenhouse"
+
+
 def test_returns_none_for_unknown_url() -> None:
     assert detect_ats("https://careers.acme.com/jobs") is None
 

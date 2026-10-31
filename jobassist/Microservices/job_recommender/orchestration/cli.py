@@ -17,6 +17,7 @@ from rich.console import Console
 from rich.table import Table
 
 from jobassist.Microservices.job_recommender.models import JobQuery, ScoredPosting
+from jobassist.Microservices.job_recommender.orchestration.employers_file import load_employers
 from jobassist.Microservices.job_recommender.reporting.report import generate_report
 
 app = typer.Typer(
@@ -29,6 +30,8 @@ _console = Console()
 
 _JOB_RECOMMENDER_URL = os.environ.get("JOB_RECOMMENDER_URL", "http://localhost:8003")
 _WEB_SCRAPER_URL = os.environ.get("WEB_SCRAPER_URL", "http://localhost:8001")
+# Employer-list runs fetch ~100 boards, pace Adzuna and read company websites.
+_RECOMMEND_TIMEOUT = 3600.0
 
 
 @app.callback()
@@ -106,8 +109,31 @@ def search(
     index: Optional[str] = typer.Option(
         None, "--index", help="Expand companies from a stock index (e.g. 'ftse100')."
     ),
+    employers: Optional[Path] = typer.Option(
+        None,
+        "--employers",
+        "-e",
+        help="Excel employer list (.xlsx) with a 'Company' column; searches those employers.",
+    ),
+    starred: bool = typer.Option(
+        False, "--starred", help="With --employers: only rows marked Y in 'My star'."
+    ),
+    bucket: Optional[list[str]] = typer.Option(
+        None, "--bucket", "-b", help="With --employers: only this Bucket (repeatable)."
+    ),
     aliases: bool = typer.Option(
         True, "--aliases/--no-aliases", help="Expand role to synonyms before searching."
+    ),
+    company_sites: bool = typer.Option(
+        False,
+        "--company-sites/--no-company-sites",
+        help="Also search each named company's own careers website (uses Claude).",
+    ),
+    refresh: bool = typer.Option(
+        False, "--refresh", help="Ignore results saved in the last 24 hours; search again."
+    ),
+    budget: float = typer.Option(
+        5.0, "--budget", help="Claude spending limit for this search, in US dollars."
     ),
     one_per_company: bool = typer.Option(
         True,
@@ -123,6 +149,18 @@ def search(
     resume_text = resume.read_text()
 
     resolved_companies: list[str] = list(company or [])
+    company_urls: dict[str, str] = {}
+    if employers is not None:
+        try:
+            targets = load_employers(employers, starred_only=starred, buckets=bucket)
+        except (OSError, ValueError) as exc:
+            _console.print(f"[red]Error:[/red] could not read employer list {employers}: {exc}")
+            raise typer.Exit(1) from exc
+        if not targets:
+            _console.print("[red]Error:[/red] no employers matched in the employer list.")
+            raise typer.Exit(1)
+        resolved_companies.extend(t.name for t in targets)
+        company_urls.update({t.name: t.careers_url for t in targets if t.careers_url})
     if index is not None:
         try:
             resolved_companies.extend(_resolve_index(index))
@@ -136,12 +174,15 @@ def search(
         location=location,
         companies=resolved_companies,
         max_results=max_results,
+        company_urls=company_urls,
     )
 
     _console.print(f"\nSearching for [bold]{query.role}[/bold] ({query.job_type})")
     if query.location:
         _console.print(f"Location: {query.location}")
-    if query.companies:
+    if len(query.companies) > 10:
+        _console.print(f"Companies: {len(query.companies)} employers")
+    elif query.companies:
         _console.print(f"Companies: {', '.join(query.companies)}")
     _console.print()
 
@@ -153,8 +194,11 @@ def search(
                 "resume": resume_text,
                 "one_per_company": one_per_company,
                 "expand_aliases": aliases,
+                "refresh": refresh,
+                "search_company_sites": company_sites,
+                "budget_usd": budget,
             },
-            timeout=300.0,
+            timeout=_RECOMMEND_TIMEOUT,
         )
         resp.raise_for_status()
     except httpx.HTTPError as exc:
@@ -164,7 +208,11 @@ def search(
         )
         raise typer.Exit(1) from exc
 
-    results = [ScoredPosting.model_validate(r) for r in resp.json()["results"]]
+    body = resp.json()
+    results = [ScoredPosting.model_validate(r) for r in body["results"]]
+    if body.get("stop_reason"):
+        _console.print(f"[yellow]Finished early:[/yellow] {body['stop_reason']}")
+    _console.print(f"[dim]Claude cost: about ${body.get('spent_usd', 0.0):.2f}[/dim]")
 
     if not results:
         _console.print("No postings found.")

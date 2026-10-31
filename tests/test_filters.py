@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from jobassist.Microservices.job_recommender.models import JobPosting, ScoredPosting
-from jobassist.Microservices.job_recommender.ranking.filters import top_per_company
+from jobassist.Microservices.job_recommender.ranking.filters import (
+    cap_for_scoring,
+    top_per_company,
+)
 
 
 def _posting(
@@ -145,3 +148,33 @@ def test_mixed_stream_deduplicates_per_company() -> None:
     assert scores["Acme"] == 0.8
     assert scores["BetaCorp"] == 0.5
     assert scores["Gamma"] == 0.9
+
+
+# ---------------------------------------------------------------------------
+# cap_for_scoring
+# ---------------------------------------------------------------------------
+
+
+def _jp(company: str, role: str, source: str = "greenhouse") -> JobPosting:
+    return JobPosting(
+        company=company, role=role, location="London", url=f"https://x/{company}/{role}",
+        source=source,
+    )
+
+
+def test_cap_round_robins_across_companies() -> None:
+    postings = [_jp("Big", f"Role {i}") for i in range(5)] + [_jp("Small", "Only role")]
+    capped = cap_for_scoring(postings, 3)
+    assert [(p.company, p.role) for p in capped] == [
+        ("Big", "Role 0"), ("Small", "Only role"), ("Big", "Role 1")
+    ]
+
+
+def test_cap_prefers_ats_within_a_round() -> None:
+    postings = [_jp("Agg", "A", source="adzuna"), _jp("Ats", "B", source="lever")]
+    assert [p.company for p in cap_for_scoring(postings, 1)] == ["Ats"]
+
+
+def test_cap_larger_than_input_keeps_all() -> None:
+    postings = [_jp("A", "x"), _jp("B", "y")]
+    assert len(cap_for_scoring(postings, 50)) == 2

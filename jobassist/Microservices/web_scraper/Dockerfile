@@ -10,6 +10,8 @@ WORKDIR /app
 COPY pyproject.toml uv.lock README.md ./
 COPY jobassist ./jobassist
 RUN uv sync --frozen --no-dev
+# Headless browser for reading JavaScript-heavy company careers sites.
+RUN uv run playwright install --with-deps chromium
 
 EXPOSE 8001
 ENV PORT=8001

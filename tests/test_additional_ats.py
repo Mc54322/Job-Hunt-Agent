@@ -1,4 +1,4 @@
-"""Tests for additional ATS fetchers: Ashby, SmartRecruiters, Teamtailor."""
+"""Tests for additional ATS fetchers: Ashby, SmartRecruiters, Teamtailor, Workable."""
 
 from __future__ import annotations
 
@@ -18,6 +18,7 @@ from jobassist.Microservices.web_scraper.sources.ats.smartrecruiters.smartrecrui
 from jobassist.Microservices.web_scraper.sources.ats.teamtailor.teamtailor import (
     TeamtailorFetcher,
 )
+from jobassist.Microservices.web_scraper.sources.ats.workable.workable import WorkableFetcher
 
 _FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -41,7 +42,7 @@ class TestAshbyFetcher:
 
         data = _load("ashby_jobs.json")
         with respx.mock:
-            respx.post("https://api.ashbyhq.com/posting-api/job-board/acme").mock(
+            respx.get("https://api.ashbyhq.com/posting-api/job-board/acme").mock(
                 return_value=httpx.Response(200, json=data)
             )
             async with httpx.AsyncClient() as client:
@@ -56,7 +57,7 @@ class TestAshbyFetcher:
 
         data = _load("ashby_jobs.json")
         with respx.mock:
-            respx.post("https://api.ashbyhq.com/posting-api/job-board/acme").mock(
+            respx.get("https://api.ashbyhq.com/posting-api/job-board/acme").mock(
                 return_value=httpx.Response(200, json=data)
             )
             async with httpx.AsyncClient() as client:
@@ -70,12 +71,12 @@ class TestAshbyFetcher:
         assert "ashbyhq.com" in p.url
 
     @pytest.mark.asyncio
-    async def test_remote_flag_overrides_location(self) -> None:
+    async def test_remote_flag_used_when_location_blank(self) -> None:
 
         data = _load("ashby_jobs.json")
         query = JobQuery(role="Data Analyst", job_type="full-time", companies=["Acme"])
         with respx.mock:
-            respx.post("https://api.ashbyhq.com/posting-api/job-board/acme").mock(
+            respx.get("https://api.ashbyhq.com/posting-api/job-board/acme").mock(
                 return_value=httpx.Response(200, json=data)
             )
             async with httpx.AsyncClient() as client:
@@ -89,7 +90,7 @@ class TestAshbyFetcher:
 
         data = _load("ashby_jobs.json")
         with respx.mock:
-            respx.post("https://api.ashbyhq.com/posting-api/job-board/acme").mock(
+            respx.get("https://api.ashbyhq.com/posting-api/job-board/acme").mock(
                 return_value=httpx.Response(200, json=data)
             )
             async with httpx.AsyncClient() as client:
@@ -102,7 +103,7 @@ class TestAshbyFetcher:
     async def test_http_error_skips_company(self) -> None:
 
         with respx.mock:
-            respx.post("https://api.ashbyhq.com/posting-api/job-board/acme").mock(
+            respx.get("https://api.ashbyhq.com/posting-api/job-board/acme").mock(
                 return_value=httpx.Response(404)
             )
             async with httpx.AsyncClient() as client:
@@ -117,7 +118,7 @@ class TestAshbyFetcher:
         data = _load("ashby_jobs.json")
         query = JobQuery(role="", job_type="full-time", companies=["Acme"])
         with respx.mock:
-            respx.post("https://api.ashbyhq.com/posting-api/job-board/acme").mock(
+            respx.get("https://api.ashbyhq.com/posting-api/job-board/acme").mock(
                 return_value=httpx.Response(200, json=data)
             )
             async with httpx.AsyncClient() as client:
@@ -162,8 +163,10 @@ class TestSmartRecruitersFetcher:
 
         p = results[0]
         assert p.source == "smartrecruiters"
-        assert p.company == "Acme Corp"
+        assert p.company == "Acme"  # the caller's name, so dedupe/one-per-company line up
         assert "London" in p.location
+        # Public ad page, not the JSON API `ref` URL.
+        assert p.url == "https://jobs.smartrecruiters.com/Acme/sr-001"
 
     @pytest.mark.asyncio
     async def test_no_match_returns_empty(self) -> None:
@@ -302,3 +305,91 @@ class TestTeamtailorFetcher:
                 results = [p async for p in await fetcher.search(_QUERY_SE)]
 
         assert results == []
+
+
+# ---------------------------------------------------------------------------
+# Workable
+# ---------------------------------------------------------------------------
+
+
+_WORKABLE_URL = "https://apply.workable.com/api/v1/widget/accounts/acme"
+
+
+class TestWorkableFetcher:
+    @pytest.mark.asyncio
+    async def test_returns_matching_postings(self) -> None:
+        with respx.mock:
+            respx.get(_WORKABLE_URL).mock(
+                return_value=httpx.Response(200, json=_load("workable_jobs.json"))
+            )
+            async with httpx.AsyncClient() as client:
+                results = [p async for p in await WorkableFetcher(client).search(_QUERY_SE)]
+
+        assert len(results) == 1
+        p = results[0]
+        assert p.source == "workable"
+        assert p.company == "Acme"
+        assert p.location == "London, United Kingdom"
+        assert p.url == "https://apply.workable.com/j/AAA111"
+        assert p.posted_date is not None and p.posted_date.isoformat() == "2026-09-28"
+
+    @pytest.mark.asyncio
+    async def test_remote_location(self) -> None:
+        query = JobQuery(role="Data Analyst", job_type="full-time", companies=["Acme"])
+        with respx.mock:
+            respx.get(_WORKABLE_URL).mock(
+                return_value=httpx.Response(200, json=_load("workable_jobs.json"))
+            )
+            async with httpx.AsyncClient() as client:
+                results = [p async for p in await WorkableFetcher(client).search(query)]
+
+        assert results[0].location == "United Kingdom (Remote)"
+
+    @pytest.mark.asyncio
+    async def test_slug_override(self) -> None:
+        query = JobQuery(role="Software Engineer", job_type="full-time", companies=["Acme Ltd"])
+        with respx.mock:
+            route = respx.get(_WORKABLE_URL).mock(
+                return_value=httpx.Response(200, json=_load("workable_jobs.json"))
+            )
+            async with httpx.AsyncClient() as client:
+                fetcher = WorkableFetcher(client, slugs={"Acme Ltd": "acme"})
+                results = [p async for p in await fetcher.search(query)]
+
+        assert route.call_count == 1
+        assert results[0].company == "Acme Ltd"
+
+    @pytest.mark.asyncio
+    async def test_http_error_skips_company(self) -> None:
+        with respx.mock:
+            respx.get(_WORKABLE_URL).mock(return_value=httpx.Response(404))
+            async with httpx.AsyncClient() as client:
+                results = [p async for p in await WorkableFetcher(client).search(_QUERY_SE)]
+
+        assert results == []
+
+
+class TestSmartRecruitersAliases:
+    @pytest.mark.asyncio
+    async def test_one_request_per_term_and_no_duplicates(self) -> None:
+        data = _load("smartrecruiters_jobs.json")
+        query = JobQuery(
+            role="Software Engineer",
+            job_type="full-time",
+            companies=["Acme"],
+            role_aliases=["Engineer", "Developer"],
+        )
+        with respx.mock:
+            route = respx.get("https://api.smartrecruiters.com/v1/companies/Acme/postings").mock(
+                return_value=httpx.Response(200, json=data)
+            )
+            async with httpx.AsyncClient() as client:
+                fetcher = SmartRecruitersFetcher(client)
+                results = [p async for p in await fetcher.search(query)]
+
+        assert route.call_count == 3
+        assert [c.request.url.params["q"] for c in route.calls] == [
+            "Software Engineer", "Engineer", "Developer"
+        ]
+        # Same ads come back for every term; each is yielded once.
+        assert sorted(p.role for p in results) == ["Backend Developer", "Software Engineer"]

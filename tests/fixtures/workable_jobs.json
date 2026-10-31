@@ -1,0 +1,32 @@
+{
+  "name": "Acme",
+  "description": "",
+  "jobs": [
+    {
+      "title": "Software Engineer",
+      "shortcode": "AAA111",
+      "employment_type": "Full-time",
+      "telecommuting": false,
+      "department": "Engineering",
+      "url": "https://apply.workable.com/j/AAA111",
+      "published_on": "2026-09-28",
+      "created_at": "2026-09-28",
+      "country": "United Kingdom",
+      "city": "London",
+      "state": "England"
+    },
+    {
+      "title": "Data Analyst",
+      "shortcode": "BBB222",
+      "employment_type": "Full-time",
+      "telecommuting": true,
+      "department": "Data",
+      "url": "https://apply.workable.com/j/BBB222",
+      "published_on": "2026-09-20",
+      "created_at": "2026-09-20",
+      "country": "United Kingdom",
+      "city": "",
+      "state": ""
+    }
+  ]
+}

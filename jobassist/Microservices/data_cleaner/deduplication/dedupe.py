@@ -15,6 +15,7 @@ ATS_SOURCES: frozenset[str] = frozenset({
     "ashby",
     "smartrecruiters",
     "teamtailor",
+    "workable",
 })
 
 # Noise suffixes that recruiters append to role titles (e.g. "- job guarantee",

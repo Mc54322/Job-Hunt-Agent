@@ -1,4 +1,4 @@
-# Runs the four JobAssist microservices as independent containers on one network.
+# Runs the JobAssist microservices as independent containers on one network.
 # Secrets come from the environment / a .env file (never commit real keys).
 #   docker compose up --build
 services:
@@ -49,6 +49,28 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     depends_on:
       - job_recommender
+
+  list_builder:
+    build:
+      context: .
+      dockerfile: jobassist/Microservices/list_builder/Dockerfile
+    ports:
+      - "8005:8005"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: jobassist/Microservices/frontend/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      JOB_RECOMMENDER_URL: http://job_recommender:8003
+      WEB_SCRAPER_URL: http://web_scraper:8001
+      DATA_CLEANER_URL: http://data_cleaner:8002
+      LIST_BUILDER_URL: http://list_builder:8005
+    depends_on:
+      - job_recommender
+      - list_builder
 
 volumes:
   jobassist_data:

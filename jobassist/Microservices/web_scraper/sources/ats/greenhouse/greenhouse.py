@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import random
 from datetime import date, datetime
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, Mapping
 
 import httpx
 
@@ -21,8 +21,9 @@ def _slugify(company: str) -> str:
     return company.lower().replace(" ", "-")
 
 
-def _role_matches(title: str, role: str) -> bool:
-    return role.lower() in title.lower()
+def _role_matches(title: str, query: JobQuery) -> bool:
+    lowered = title.lower()
+    return any(term.lower() in lowered for term in query.role_terms())
 
 
 def _parse_date(value: str) -> date | None:
@@ -48,16 +49,20 @@ def _to_posting(job: dict[str, Any], company: str) -> JobPosting:
 class GreenhouseFetcher:
     """Fetches postings from Greenhouse public board endpoints."""
 
-    def __init__(self, client: httpx.AsyncClient) -> None:
+    def __init__(
+        self, client: httpx.AsyncClient, *, slugs: Mapping[str, str] | None = None
+    ) -> None:
         self._client = client
+        self._slugs = dict(slugs or {})
 
     async def search(self, query: JobQuery) -> AsyncIterator[JobPosting]:
         """Return an async iterator of postings matching *query.role* from *query.companies*."""
         client = self._client
+        slugs = self._slugs
 
         async def _generate() -> AsyncIterator[JobPosting]:
             for company in query.companies:
-                url = _BOARD_URL.format(slug=_slugify(company))
+                url = _BOARD_URL.format(slug=slugs.get(company) or _slugify(company))
                 try:
                     resp = await client.get(url, headers={"User-Agent": _USER_AGENT})
                     resp.raise_for_status()
@@ -68,7 +73,7 @@ class GreenhouseFetcher:
                     continue
 
                 for job in resp.json().get("jobs", []):
-                    if _role_matches(job.get("title", ""), query.role):
+                    if _role_matches(job.get("title", ""), query):
                         yield _to_posting(job, company)
 
                 await asyncio.sleep(_RATE_DELAY + random.uniform(-_RATE_JITTER, _RATE_JITTER))
