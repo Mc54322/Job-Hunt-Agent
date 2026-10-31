@@ -23,3 +23,7 @@ __pycache__/
 # personal data
 resume.txt
 *.resume.txt
+/Target_Employers.xlsx
+
+# macOS
+.DS_Store
