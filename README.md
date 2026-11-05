@@ -33,9 +33,12 @@ first time it runs.
 
 ### Option 1 — the download (Mac or Windows, no coding)
 
-1. Get **`JobAssist.zip`** (from whoever shares it with you, or build it — see
-   [Sharing JobAssist](#sharing-jobassist-with-others)) and **unzip it**. Keep everything in
-   the `JobAssist` folder together.
+1. Download **`JobAssist.zip`** from the
+   [latest release](https://github.com/Mc54322/Job-Hunt-Agent/releases/latest) (under
+   **Assets**) and **unzip it**. Keep everything in the `JobAssist` folder together.
+
+   > GitHub's green **Code → Download ZIP** button gives you the source code only, without
+   > the programs below — use the release download instead.
 2. Double-click the program for your computer inside that folder:
    - **Windows:** `JobAssist for Windows.exe`
    - **Mac:** `JobAssist for Mac`
@@ -164,7 +167,9 @@ Build a download anyone can use (run on a Mac):
 bash packaging/build.sh
 ```
 
-This makes `dist/JobAssist.zip` (about 8 MB) containing **JobAssist for Windows.exe**,
+This makes `dist/JobAssist.zip` (about 8 MB) — attach it to a
+[GitHub release](https://github.com/Mc54322/Job-Hunt-Agent/releases) so others can
+download it (`gh release create vX.Y.Z dist/JobAssist.zip`). It contains **JobAssist for Windows.exe**,
 **JobAssist for Mac** (Apple Silicon and Intel), **READ ME FIRST.txt**, **Example employer
 list.txt**, the app's source and this README. Each person enters their own API keys on
 first run (saved only in their own copy's `.env`).
