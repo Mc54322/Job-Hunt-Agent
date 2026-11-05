@@ -1,0 +1,1118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JobAssist</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --text: #1d2330; --muted: #5f6b7a; --line: #e2e6eb;
+    --accent: #2f5bd3; --accent-text: #ffffff; --accent-soft: #e8eefc;
+    --good: #1f7a4d; --good-soft: #e3f4ea; --ok: #8a6400; --ok-soft: #fbf1d6;
+    --weak: #8c3b3b; --weak-soft: #f8e5e5; --warn-soft: #fff4d6; --warn-line: #e8c76a;
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171c; --panel: #1c2028; --text: #e6e9ee; --muted: #9aa4b2; --line: #2d333d;
+      --accent: #6d8ff0; --accent-text: #0f1320; --accent-soft: #232c45;
+      --good: #6fd19c; --good-soft: #1b3326; --ok: #e6c167; --ok-soft: #3a3220;
+      --weak: #ee9a9a; --weak-soft: #3d2324; --warn-soft: #3a3220; --warn-line: #7a6427;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 1040px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 1.6rem; margin: 0 0 4px; }
+  h2 { font-size: 1.1rem; margin: 0 0 12px; }
+  .lede { color: var(--muted); margin: 0 0 20px; }
+  .panel {
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 20px; margin-bottom: 16px;
+  }
+  .step { display: flex; gap: 10px; align-items: baseline; }
+  .step-num {
+    flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--accent-soft);
+    color: var(--accent); font-weight: 700; display: grid; place-items: center; font-size: .9rem;
+  }
+  label { display: block; font-weight: 600; margin: 12px 0 4px; }
+  .hint { color: var(--muted); font-size: .9rem; font-weight: 400; }
+  input[type=text], input[type=number], select {
+    width: 100%; padding: 10px 12px; font: inherit; color: var(--text);
+    background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+  }
+  input:focus, select:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0 16px; }
+  .check { display: flex; gap: 10px; align-items: flex-start; font-weight: 400; margin: 10px 0; }
+  .check input { margin-top: 4px; width: 18px; height: 18px; flex: none; }
+  .file-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .file-status { color: var(--muted); }
+  .file-status strong { color: var(--text); }
+  button {
+    font: inherit; font-weight: 600; border-radius: 8px; padding: 10px 16px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--panel); color: var(--text);
+  }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  button.big { font-size: 1.1rem; padding: 14px 28px; }
+  button:disabled { opacity: .55; cursor: not-allowed; }
+  .choice { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+  .choice label {
+    margin: 0; font-weight: 400; border: 1px solid var(--line); border-radius: 8px; padding: 12px;
+    display: flex; gap: 10px; cursor: pointer;
+  }
+  .choice label:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+  .choice strong { display: block; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+  .chips label {
+    margin: 0; font-weight: 400; font-size: .9rem; border: 1px solid var(--line); border-radius: 999px;
+    padding: 4px 12px; display: flex; gap: 6px; align-items: center; cursor: pointer;
+  }
+  .chips label:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+  .banner {
+    border: 1px solid var(--warn-line); background: var(--warn-soft); border-radius: var(--radius);
+    padding: 12px 16px; margin-bottom: 16px;
+  }
+  .error { border-color: var(--weak); background: var(--weak-soft); }
+  .hidden { display: none !important; }
+  details summary { cursor: pointer; font-weight: 600; }
+  .progress-track { height: 10px; background: var(--bg); border-radius: 999px; overflow: hidden; margin: 12px 0 6px; border: 1px solid var(--line); }
+  .progress-bar { height: 100%; width: 0; background: var(--accent); transition: width .4s; }
+  .progress-bar.indeterminate { width: 30%; animation: slide 1.4s ease-in-out infinite; }
+  @keyframes slide { 0% { margin-left: -30%; } 100% { margin-left: 100%; } }
+  .phases { display: flex; gap: 16px; flex-wrap: wrap; color: var(--muted); font-size: .9rem; }
+  .phases .active { color: var(--text); font-weight: 600; }
+  .phases .finished { color: var(--good); }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 12px; }
+  .toolbar input[type=text] { flex: 1; min-width: 180px; }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: .95rem; }
+  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: .85rem; }
+  td a { color: var(--accent); font-weight: 600; text-decoration: none; }
+  td a:hover { text-decoration: underline; }
+  .company { color: var(--muted); font-size: .9rem; }
+  .badge { display: inline-block; border-radius: 999px; padding: 2px 10px; font-size: .85rem; font-weight: 600; white-space: nowrap; }
+  .badge.strong { background: var(--good-soft); color: var(--good); }
+  .badge.good { background: var(--ok-soft); color: var(--ok); }
+  .badge.weak { background: var(--weak-soft); color: var(--weak); }
+  .why-btn { padding: 4px 10px; font-size: .85rem; font-weight: 500; }
+  .why-row td { color: var(--muted); background: var(--bg); font-size: .92rem; }
+  .scroll-box { max-height: 70vh; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+  .scroll-box thead th { position: sticky; top: 0; background: var(--panel); z-index: 1; }
+  textarea {
+    width: 100%; min-height: 220px; padding: 10px 12px; color: var(--text); background: var(--bg);
+    border: 1px solid var(--line); border-radius: 8px; font: 14px/1.5 ui-monospace, Menlo, Consolas, monospace;
+  }
+  .warnings { margin: 8px 0 0; padding-left: 20px; color: var(--ok); }
+  .badge.none { background: var(--bg); color: var(--muted); border: 1px solid var(--line); }
+  .muted { color: var(--muted); }
+  @media (max-width: 640px) {
+    .hide-sm { display: none; }
+    th, td { padding: 8px 4px; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>JobAssist</h1>
+  <p class="lede">Finds jobs that match your CV — on job sites, on employers' job boards and on their own websites — and explains why each one fits.</p>
+
+  <div id="service-banner" class="banner error hidden"></div>
+
+  <section class="panel">
+    <div class="step"><span class="step-num">1</span><h2>Your CV</h2></div>
+    <div class="file-row">
+      <button type="button" id="cv-button">Choose CV file…</button>
+      <input type="file" id="cv-file" accept=".pdf,.docx,.txt,.md" class="hidden">
+      <span id="cv-status" class="file-status">No CV loaded yet. PDF, Word (.docx) or text.</span>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="step"><span class="step-num">2</span><h2>What job are you looking for?</h2></div>
+    <div class="row">
+      <div>
+        <label for="role">Job title</label>
+        <input type="text" id="role" placeholder="e.g. Data Analyst" autocomplete="off">
+      </div>
+      <div>
+        <label for="job-type">Type of job</label>
+        <select id="job-type">
+          <option value="full-time">Full-time</option>
+          <option value="graduate scheme">Graduate scheme</option>
+          <option value="internship">Internship</option>
+          <option value="part-time">Part-time</option>
+          <option value="contract">Contract</option>
+        </select>
+      </div>
+      <div>
+        <label for="location">Where <span class="hint">(e.g. UK, London)</span></label>
+        <input type="text" id="location" value="UK">
+      </div>
+    </div>
+    <div id="titles-block" class="hidden">
+      <label>Also search for <span class="hint">— similar titles with overlapping skills. Untick any you don't want; scoring shows which jobs really fit.</span></label>
+      <div id="titles" class="chips"></div>
+      <div class="toolbar" style="margin-top:10px">
+        <input type="text" id="title-add" placeholder="Add another title, e.g. Data Engineer">
+        <button type="button" id="title-add-btn">Add</button>
+      </div>
+      <p id="titles-status" class="hint"></p>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="step"><span class="step-num">3</span><h2>Where should JobAssist look?</h2></div>
+    <div class="choice" role="radiogroup">
+      <label><input type="radio" name="scope" value="list" checked>
+        <span><strong>My list of employers</strong><span class="hint">Search each company in your Excel list.</span></span></label>
+      <label><input type="radio" name="scope" value="everywhere">
+        <span><strong>All job sites</strong><span class="hint">A general search of Adzuna and Reed.</span></span></label>
+    </div>
+
+    <div id="list-options">
+      <label>Employer list</label>
+      <div class="file-row">
+        <button type="button" id="xlsx-button">Choose Excel file…</button>
+        <input type="file" id="xlsx-file" accept=".xlsx" class="hidden">
+        <span id="xlsx-status" class="file-status">No list loaded yet. It needs a "Company" column.</span>
+      </div>
+      <div id="list-filters" class="hidden">
+        <label class="check"><input type="checkbox" id="starred-only">
+          <span>Only my starred employers <span class="hint">(rows with "Y" in "My star" — spending limit <span id="starred-limit">$2.00</span>)</span></span></label>
+        <div id="bucket-block">
+          <label>Groups to include</label>
+          <div id="buckets" class="chips"></div>
+        </div>
+        <p id="selected-count" class="muted"></p>
+      </div>
+      <label class="check"><input type="checkbox" id="company-sites" checked>
+        <span>Also search each company's own website
+          <span class="hint"><br>Finds jobs that aren't on job sites. Each website is capped at $0.20 and 60 seconds, then skipped. The first time it can take 10–20 minutes for 100 employers and uses some Anthropic credit (see the estimate next to "Find jobs"; your spending limit always applies). Results are saved for 24 hours, so running it again is fast and free.</span></span></label>
+    </div>
+
+    <details>
+      <summary>More options</summary>
+      <div class="row">
+        <div>
+          <label for="max-results">Most jobs to score <span class="hint">(each costs a little credit)</span></label>
+          <input type="number" id="max-results" min="1" max="500" value="50">
+        </div>
+        <div>
+          <label for="budget">Spending limit for this search <span class="hint">(US$)</span></label>
+          <input type="number" id="budget" min="0.1" step="0.5" value="5">
+        </div>
+        <div>
+          <label for="starred-budget">Limit when searching only starred employers <span class="hint">(US$)</span></label>
+          <input type="number" id="starred-budget" min="0.1" step="0.5" value="2">
+        </div>
+        <div>
+          <label for="company-budget">Hard cap per employer <span class="hint">(US$)</span></label>
+          <input type="number" id="company-budget" min="0.01" step="0.05" value="0.20">
+        </div>
+      </div>
+      <p class="hint">When the limit is reached JobAssist stops using Claude, keeps everything found so far and tells you why. An employer whose website would cost more than its cap, or takes longer than 60 seconds, is skipped and flagged. Stopping the search moves straight on to scoring what was found.</p>
+      <label class="check"><input type="checkbox" id="aliases" checked>
+        <span>Also look for similar job titles <span class="hint">(e.g. "Data Analyst" also finds "Insights Analyst")</span></span></label>
+      <label class="check"><input type="checkbox" id="one-per-company" checked>
+        <span>Show only the best match at each company</span></label>
+      <label class="check"><input type="checkbox" id="deep-search">
+        <span>Deep search for careers pages JobAssist can't find <span class="hint">— uses web search, which costs $0.10–$0.80 per employer and rarely finds more. Only runs if the per-employer cap is at least $0.40.</span></span></label>
+      <label class="check"><input type="checkbox" id="refresh">
+        <span>Search again from scratch <span class="hint">— ignore results saved in the last 24 hours (slower, uses more credit)</span></span></label>
+    </details>
+  </section>
+
+  <div class="toolbar">
+    <button type="button" id="run" class="primary big">Find jobs</button>
+    <span id="run-hint" class="muted"></span>
+    <span id="estimate" class="muted"></span>
+  </div>
+
+  <section id="progress-panel" class="panel hidden" aria-live="polite">
+    <h2 id="progress-title">Searching…</h2>
+    <div class="phases">
+      <span data-phase="searching">1. Searching</span>
+      <span data-phase="cleaning">2. Removing duplicates</span>
+      <span data-phase="scoring">3. Scoring against your CV</span>
+    </div>
+    <div class="progress-track"><div id="progress-bar" class="progress-bar indeterminate"></div></div>
+    <div id="progress-message" class="muted"></div>
+    <div class="toolbar" style="margin-top:12px">
+      <strong id="progress-spent"></strong>
+      <button type="button" id="stop">Stop searching &amp; score what's found</button>
+    </div>
+    <p class="hint">You can leave this page open and come back — the search keeps running. Stopping during the search goes straight to scoring the jobs found so far; stopping during scoring shows what's been scored.</p>
+  </section>
+
+  <div id="run-error" class="banner error hidden"></div>
+
+  <section id="results-panel" class="panel hidden">
+    <h2 id="results-title">Results</h2>
+    <div id="results-notice" class="banner hidden"></div>
+    <p id="results-spent" class="muted"></p>
+    <div class="toolbar">
+      <input type="text" id="filter" placeholder="Filter by company, job title or location">
+      <button type="button" id="download-csv">Download spreadsheet</button>
+      <button type="button" id="download-report">Download report</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Match</th><th>Job</th><th class="hide-sm">Location</th>
+          <th class="hide-sm">Salary</th><th class="hide-sm">Found on</th><th></th>
+        </tr></thead>
+        <tbody id="results-body"></tbody>
+      </table>
+    </div>
+    <p id="no-results" class="muted hidden">No matching jobs this time. Try a broader job title, turn on "similar job titles", or include more employers.</p>
+  </section>
+
+  <section id="coverage-panel" class="panel hidden">
+    <details>
+      <summary id="coverage-title">What was searched at each employer</summary>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Employer</th><th>Jobs found</th><th>Claude cost</th><th>Notes</th></tr></thead>
+          <tbody id="coverage-body"></tbody>
+        </table>
+      </div>
+    </details>
+  </section>
+
+  <section id="list-panel" class="panel">
+    <h2>Make an employer list</h2>
+    <p class="muted">Type or paste companies — one per line — and JobAssist turns them into the employer-tracking spreadsheet (same layout as the original: groups, stars, status, contacts and a summary tab). Free: no Claude is used.</p>
+    <details>
+      <summary>How to write the list</summary>
+      <ul class="muted">
+        <li>A line ending with <strong>:</strong> starts a group, e.g. <code>London tech:</code> — the companies below it go in that group.</li>
+        <li>Put <strong>Y</strong> (or <strong>*</strong>) after a company to star it: <code>Monzo, Y</code></li>
+        <li>Optional: a careers page link after the name: <code>Wise, https://wise.jobs</code>. Or the group on the same line: <code>Accenture, Consulting</code></li>
+        <li>Lines starting with <strong>#</strong> are ignored. Copying two columns from a spreadsheet works too.</li>
+        <li>Optional first lines: <code>University: Leeds</code> (names the alumni column) and <code>CV versions: Data, Software</code> (a dropdown).</li>
+      </ul>
+    </details>
+    <div class="toolbar" style="margin-top:12px">
+      <button type="button" id="list-load">Load a .txt file…</button>
+      <input type="file" id="list-file" accept=".txt,.csv,.tsv,text/plain" class="hidden">
+      <button type="button" id="list-example">Show an example</button>
+    </div>
+    <textarea id="list-text" spellcheck="false" placeholder="London tech:&#10;Google&#10;Monzo, Y&#10;&#10;Government and public sector:&#10;Bank of England, Y"></textarea>
+    <div class="row">
+      <div>
+        <label for="list-university">University <span class="hint">(optional — names the alumni column)</span></label>
+        <input type="text" id="list-university" placeholder="e.g. Leeds">
+      </div>
+      <div>
+        <label for="list-filename">File name</label>
+        <input type="text" id="list-filename" value="Employer list">
+      </div>
+    </div>
+    <div class="toolbar" style="margin-top:12px">
+      <button type="button" id="list-check">Check list</button>
+      <button type="button" id="list-download" class="primary">Download Excel file</button>
+      <button type="button" id="list-use">Use this list for my search</button>
+    </div>
+    <div id="list-result" class="muted"></div>
+  </section>
+
+  <section id="saved-panel" class="panel">
+    <h2>Saved jobs</h2>
+    <p class="muted">Every job JobAssist has found in earlier searches, with match scores already worked out for your current CV. Opening this is instant and free — nothing is searched or scored.</p>
+    <div class="toolbar">
+      <button type="button" id="saved-load">Show saved jobs</button>
+      <span id="saved-status" class="muted"></span>
+    </div>
+    <div id="saved-view" class="hidden">
+      <div class="toolbar">
+        <input type="text" id="saved-filter" placeholder="Filter by company, job title or location">
+        <label class="check" style="margin:0"><input type="checkbox" id="saved-scored-only"><span>Only jobs scored against my CV</span></label>
+        <button type="button" id="saved-csv">Download spreadsheet</button>
+      </div>
+      <div class="table-wrap scroll-box">
+        <table>
+          <thead><tr>
+            <th>Match</th><th>Job</th><th class="hide-sm">Location</th><th class="hide-sm">Salary</th>
+            <th class="hide-sm">Found on</th><th class="hide-sm">First found</th><th></th>
+          </tr></thead>
+          <tbody id="saved-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const store = {
+  get(key) { try { return JSON.parse(localStorage.getItem("jobassist." + key)); } catch { return null; } },
+  set(key, value) { try { localStorage.setItem("jobassist." + key, JSON.stringify(value)); } catch { /* storage unavailable */ } },
+  remove(key) { try { localStorage.removeItem("jobassist." + key); } catch { /* ignore */ } },
+};
+const SOURCE_NAMES = {
+  greenhouse: "Employer's jobs board", lever: "Employer's jobs board", ashby: "Employer's jobs board",
+  smartrecruiters: "Employer's jobs board", workable: "Employer's jobs board", teamtailor: "Employer's jobs board",
+  company_page: "Company website", adzuna: "Adzuna", reed: "Reed",
+};
+
+let resume = store.get("resume");            // {name, text}
+let employerList = store.get("employers");   // {filename, employers, buckets}
+let lastRun = null;                           // {query, results, companies}
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+function safeUrl(url) { return /^https?:\/\//i.test(url || "") ? url : "#"; }
+
+async function api(path, options = {}) {
+  const resp = await fetch("/api/" + path, {
+    headers: { "Content-Type": "application/json" }, ...options,
+  });
+  let body = null;
+  try { body = await resp.json(); } catch { /* non-JSON error */ }
+  if (!resp.ok) {
+    const detail = body && body.detail;
+    throw new Error(typeof detail === "string" ? detail : "Request failed (" + resp.status + ")");
+  }
+  return body;
+}
+
+function readAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(",")[1] || "");
+    reader.onerror = () => reject(new Error("Couldn't read the file."));
+    reader.readAsDataURL(file);
+  });
+}
+
+// --- Services check -------------------------------------------------------
+
+async function checkServices() {
+  try {
+    const resp = await fetch("/api/health");
+    const body = await resp.json();
+    const banner = $("service-banner");
+    if (body.ok) { banner.classList.add("hidden"); return; }
+    const down = Object.entries(body.services).filter(([, up]) => !up).map(([name]) => name);
+    banner.textContent = "Some of JobAssist's background services aren't running (" + down.join(", ") +
+      "). Close the JobAssist window and open \"Start JobAssist\" again.";
+    banner.classList.remove("hidden");
+  } catch { /* page served, so the frontend is up */ }
+}
+
+// --- CV --------------------------------------------------------------------
+
+function renderResume() {
+  $("cv-status").innerHTML = resume
+    ? "Using <strong>" + escapeHtml(resume.name) + "</strong> (" + resume.text.length.toLocaleString() + " characters). Choose another file to replace it."
+    : "No CV loaded yet. PDF, Word (.docx) or text.";
+  updateRunButton();
+}
+
+$("cv-button").addEventListener("click", () => $("cv-file").click());
+$("cv-file").addEventListener("change", async (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+  $("cv-status").textContent = "Reading " + file.name + "…";
+  try {
+    const body = await api("resume/parse", {
+      method: "POST",
+      body: JSON.stringify({ filename: file.name, content_base64: await readAsBase64(file) }),
+    });
+    resume = { name: file.name, text: body.text };
+    store.set("resume", resume);
+  } catch (err) {
+    $("cv-status").textContent = err.message;
+    event.target.value = "";
+    return;
+  }
+  event.target.value = "";
+  renderResume();
+});
+
+// --- Employer list ---------------------------------------------------------
+
+function selectedEmployers() {
+  if (!employerList) return [];
+  const starredOnly = $("starred-only").checked;
+  const buckets = new Set([...document.querySelectorAll("#buckets input:checked")].map((i) => i.value));
+  const hasBuckets = employerList.buckets.length > 0;
+  return employerList.employers.filter((e) =>
+    (!starredOnly || e.starred) && (!hasBuckets || buckets.has(e.bucket || "")));
+}
+
+function renderEmployers() {
+  const filters = $("list-filters");
+  if (!employerList) {
+    $("xlsx-status").textContent = "No list loaded yet. It needs a \"Company\" column.";
+    filters.classList.add("hidden");
+    updateRunButton();
+    return;
+  }
+  const starred = employerList.employers.filter((e) => e.starred).length;
+  $("xlsx-status").innerHTML = "Using <strong>" + escapeHtml(employerList.filename) + "</strong> — " +
+    employerList.employers.length + " employers, " + starred + " starred.";
+  const saved = store.get("form") || {};
+  const savedBuckets = saved.buckets ? new Set(saved.buckets) : null;
+  const bucketNames = [...employerList.buckets];
+  if (employerList.employers.some((e) => !e.bucket) && bucketNames.length) bucketNames.push("");
+  $("buckets").innerHTML = bucketNames.map((b) =>
+    '<label><input type="checkbox" value="' + escapeHtml(b) + '"' +
+    (!savedBuckets || savedBuckets.has(b) ? " checked" : "") + "> " +
+    escapeHtml(b || "No group") + "</label>").join("");
+  $("bucket-block").classList.toggle("hidden", bucketNames.length === 0);
+  filters.classList.remove("hidden");
+  updateSelectedCount();
+}
+
+function updateSelectedCount() {
+  if (!employerList) return;
+  const n = selectedEmployers().length;
+  $("selected-count").textContent = n + " of " + employerList.employers.length + " employers will be searched.";
+  updateRunButton();
+}
+
+$("xlsx-button").addEventListener("click", () => $("xlsx-file").click());
+$("xlsx-file").addEventListener("change", async (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+  $("xlsx-status").textContent = "Reading " + file.name + "…";
+  try {
+    const body = await api("employers/parse", {
+      method: "POST",
+      body: JSON.stringify({ filename: file.name, content_base64: await readAsBase64(file) }),
+    });
+    employerList = { filename: file.name, employers: body.employers, buckets: body.buckets };
+    store.set("employers", employerList);
+    const form = store.get("form") || {};
+    delete form.buckets;
+    store.set("form", form);
+  } catch (err) {
+    $("xlsx-status").textContent = err.message;
+    event.target.value = "";
+    return;
+  }
+  event.target.value = "";
+  renderEmployers();
+  scheduleEstimate();
+});
+$("starred-only").addEventListener("change", updateSelectedCount);
+$("buckets").addEventListener("change", updateSelectedCount);
+
+function scope() { return document.querySelector("input[name=scope]:checked").value; }
+document.querySelectorAll("input[name=scope]").forEach((radio) =>
+  radio.addEventListener("change", () => {
+    $("list-options").classList.toggle("hidden", scope() !== "list");
+    updateRunButton();
+  }));
+
+// --- Run -------------------------------------------------------------------
+
+function runProblem() {
+  if (!resume) return "Add your CV first.";
+  if (!$("role").value.trim()) return "Enter a job title.";
+  if (scope() === "list") {
+    if (!employerList) return "Choose your Excel employer list, or pick \"All job sites\".";
+    if (selectedEmployers().length === 0) return "No employers selected — tick at least one group.";
+  }
+  return "";
+}
+function updateRunButton() {
+  const problem = runProblem();
+  $("run").disabled = Boolean(problem) || Boolean(store.get("activeRun"));
+  $("run-hint").textContent = problem;
+}
+$("role").addEventListener("input", updateRunButton);
+
+function saveForm() {
+  store.set("form", {
+    role: $("role").value, jobType: $("job-type").value, location: $("location").value,
+    scope: scope(), starredOnly: $("starred-only").checked, companySites: $("company-sites").checked,
+    maxResults: $("max-results").value, aliases: $("aliases").checked,
+    onePerCompany: $("one-per-company").checked,
+    budget: $("budget").value, starredBudget: $("starred-budget").value,
+    companyBudget: $("company-budget").value, deepSearch: $("deep-search").checked,
+    buckets: [...document.querySelectorAll("#buckets input:checked")].map((i) => i.value),
+  });
+}
+function restoreForm() {
+  const f = store.get("form");
+  if (!f) return;
+  if (f.role) $("role").value = f.role;
+  if (f.jobType) $("job-type").value = f.jobType;
+  if (f.location !== undefined) $("location").value = f.location;
+  if (f.scope) document.querySelector("input[name=scope][value='" + f.scope + "']").checked = true;
+  $("starred-only").checked = Boolean(f.starredOnly);
+  if (f.companySites !== undefined) $("company-sites").checked = f.companySites;
+  if (f.maxResults) $("max-results").value = f.maxResults;
+  if (f.aliases !== undefined) $("aliases").checked = f.aliases;
+  if (f.onePerCompany !== undefined) $("one-per-company").checked = f.onePerCompany;
+  if (f.budget) $("budget").value = f.budget;
+  if (f.starredBudget) $("starred-budget").value = f.starredBudget;
+  if (f.companyBudget) $("company-budget").value = f.companyBudget;
+  $("deep-search").checked = Boolean(f.deepSearch);
+  $("list-options").classList.toggle("hidden", scope() !== "list");
+}
+
+$("run").addEventListener("click", async () => {
+  if (runProblem()) return;
+  saveForm();
+  const useList = scope() === "list";
+  const employers = useList ? selectedEmployers() : [];
+  const query = {
+    role: $("role").value.trim(),
+    job_type: $("job-type").value,
+    role_aliases: chosenTitles(),
+    location: $("location").value.trim() || null,
+    companies: employers.map((e) => e.name),
+    company_urls: Object.fromEntries(employers.filter((e) => e.careers_url).map((e) => [e.name, e.careers_url])),
+    max_results: Math.max(1, parseInt($("max-results").value, 10) || 50),
+  };
+  $("run-error").classList.add("hidden");
+  try {
+    const body = await api("runs", {
+      method: "POST",
+      body: JSON.stringify({
+        query, resume: resume.text,
+        one_per_company: $("one-per-company").checked,
+        expand_aliases: $("aliases").checked,
+        refresh: $("refresh").checked,
+        search_company_sites: useList && $("company-sites").checked,
+        budget_usd: budget(),
+        company_budget_usd: companyBudget(),
+        deep_search: $("deep-search").checked,
+      }),
+    });
+    $("refresh").checked = false;
+    store.set("activeRun", { id: body.run_id, query });
+    startPolling();
+  } catch (err) {
+    showError(err.message);
+  }
+});
+
+let pollTimer = null;
+function startPolling() {
+  $("stop").disabled = false;
+  $("stop").dataset.phase = "searching";
+  $("stop").textContent = "Stop searching & score what's found";
+  $("progress-panel").classList.remove("hidden");
+  $("results-panel").classList.add("hidden");
+  $("coverage-panel").classList.add("hidden");
+  updateRunButton();
+  clearTimeout(pollTimer);
+  poll();
+}
+
+function formatElapsed(startedAt) {
+  const secs = Math.max(0, Math.round((Date.now() - new Date(startedAt).getTime()) / 1000));
+  const m = Math.floor(secs / 60), s = secs % 60;
+  return m ? m + " min " + s + " s" : s + " s";
+}
+
+async function poll() {
+  const active = store.get("activeRun");
+  if (!active) return;
+  let status;
+  try {
+    status = await api("runs/" + active.id);
+  } catch (err) {
+    store.remove("activeRun");
+    $("progress-panel").classList.add("hidden");
+    showError(err.message.includes("unknown run")
+      ? "The last search was lost because JobAssist was restarted. Please run it again."
+      : err.message);
+    updateRunButton();
+    return;
+  }
+  renderProgress(status);
+  if (status.state === "running") { pollTimer = setTimeout(poll, 2000); return; }
+  store.remove("activeRun");
+  $("progress-panel").classList.add("hidden");
+  updateRunButton();
+  if (status.state === "error") { showError(status.error); return; }
+  // Jobs found but not scored (Stop, a limit, no credit) are still listed, marked "Not scored".
+  const unscored = (status.unscored_postings || []).map((p) => ({ posting: p, score: null, rationale: null }));
+  lastRun = {
+    query: active.query, results: status.results.concat(unscored), companies: status.companies,
+    finishedAt: status.finished_at,
+    spent: status.spent_usd, costs: status.costs, stopReason: status.stop_reason, unscored: status.unscored,
+  };
+  store.set("lastRun", lastRun);
+  renderResults();
+}
+
+function renderProgress(status) {
+  const order = ["searching", "cleaning", "scoring"];
+  const current = order.indexOf(status.phase);
+  document.querySelectorAll(".phases span").forEach((el) => {
+    const i = order.indexOf(el.dataset.phase);
+    el.className = i === current ? "active" : i < current ? "finished" : "";
+  });
+  const bar = $("progress-bar");
+  if (status.total > 0) {
+    bar.classList.remove("indeterminate");
+    bar.style.width = Math.round((100 * status.done) / status.total) + "%";
+  } else {
+    bar.classList.add("indeterminate");
+    bar.style.width = "";
+  }
+  $("progress-title").textContent = status.phase === "scoring" ? "Scoring jobs against your CV…" : "Searching…";
+  const counts = status.total > 0 ? " (" + status.done + " of " + status.total + ")" : "";
+  $("progress-message").textContent = status.message + counts + " · " + formatElapsed(status.started_at);
+  // One Stop press per phase: searching → go to scoring; scoring → finish now.
+  const stopBtn = $("stop");
+  if (status.phase === "scoring" && stopBtn.dataset.phase !== "scoring") {
+    stopBtn.dataset.phase = "scoring";
+    stopBtn.disabled = false;
+    stopBtn.textContent = "Stop scoring";
+  }
+  $("progress-spent").textContent = "Spent so far: " + money(status.spent_usd) +
+    (status.budget_usd ? " of " + money(status.budget_usd) : "");
+}
+
+function showError(message) {
+  $("run-error").textContent = message;
+  $("run-error").classList.remove("hidden");
+}
+
+function money(usd) { return "$" + (Number(usd) || 0).toFixed(2); }
+function starredOnlySearch() { return scope() === "list" && $("starred-only").checked; }
+// Searching only starred employers has its own, lower limit ($2 by default).
+function budget() {
+  return starredOnlySearch()
+    ? Math.max(0.1, parseFloat($("starred-budget").value) || 2)
+    : Math.max(0.1, parseFloat($("budget").value) || 5);
+}
+function showStarredLimit() {
+  $("starred-limit").textContent = money(Math.max(0.1, parseFloat($("starred-budget").value) || 2));
+}
+function companyBudget() { return Math.max(0.01, parseFloat($("company-budget").value) || 0.2); }
+function costSummary(costs) {
+  if (!costs || !costs.length) return "";
+  const byStep = {};
+  costs.forEach((c) => {
+    const step = c.step.startsWith("finding careers page") ? "finding careers pages" : c.step;
+    byStep[step] = (byStep[step] || 0) + c.usd;
+  });
+  return " (" + Object.entries(byStep).sort((a, b) => b[1] - a[1])
+    .map(([step, usd]) => step + " " + money(usd)).join(", ") + ")";
+}
+
+$("stop").addEventListener("click", async () => {
+  const active = store.get("activeRun");
+  if (!active) return;
+  $("stop").disabled = true;
+  $("stop").textContent = $("stop").dataset.phase === "scoring" ? "Stopping…" : "Moving on to scoring…";
+  try { await api("runs/" + active.id + "/stop", { method: "POST" }); }
+  catch (err) { showError(err.message); }
+});
+
+let estimateTimer = null;
+function scheduleEstimate() {
+  clearTimeout(estimateTimer);
+  estimateTimer = setTimeout(refreshEstimate, 600);
+}
+async function refreshEstimate() {
+  const el = $("estimate");
+  if (runProblem()) { el.textContent = ""; return; }
+  const useList = scope() === "list";
+  const employers = useList ? selectedEmployers() : [];
+  try {
+    const body = await api("estimate", {
+      method: "POST",
+      body: JSON.stringify({
+        query: {
+          role: $("role").value.trim(), job_type: $("job-type").value,
+          companies: employers.map((e) => e.name),
+          company_urls: Object.fromEntries(employers.filter((e) => e.careers_url).map((e) => [e.name, e.careers_url])),
+          max_results: Math.max(1, parseInt($("max-results").value, 10) || 50),
+        },
+        search_company_sites: useList && $("company-sites").checked,
+        expand_aliases: $("aliases").checked,
+        deep_search: $("deep-search").checked,
+        budget_usd: budget(),
+        company_budget_usd: companyBudget(),
+      }),
+    });
+    const limit = budget();
+    el.textContent = "Estimated Claude cost: " + money(body.low_usd) + "–" + money(body.high_usd) +
+      " · limit " + money(limit) + (body.high_usd > limit ? " (it may stop at your limit)" : "") +
+      ". Saved results cost nothing.";
+  } catch { el.textContent = ""; }
+}
+["role", "job-type", "max-results", "budget", "starred-budget", "company-budget", "deep-search", "company-sites", "aliases", "starred-only"].forEach((id) =>
+  $(id).addEventListener("change", scheduleEstimate));
+$("starred-budget").addEventListener("input", showStarredLimit);
+$("role").addEventListener("input", scheduleEstimate);
+$("buckets").addEventListener("change", scheduleEstimate);
+document.querySelectorAll("input[name=scope]").forEach((r) => r.addEventListener("change", scheduleEstimate));
+
+// --- Results ---------------------------------------------------------------
+
+function matchBadge(score) {
+  if (score === null || score === undefined) return '<span class="badge none">Not scored</span>';
+  const pct = Math.round(score * 100) + "%";
+  if (score >= 0.7) return '<span class="badge strong">Strong · ' + pct + "</span>";
+  if (score >= 0.5) return '<span class="badge good">Good · ' + pct + "</span>";
+  if (score >= 0.3) return '<span class="badge good">Possible · ' + pct + "</span>";
+  return '<span class="badge weak">Weak · ' + pct + "</span>";
+}
+
+function renderResults() {
+  if (!lastRun) return;
+  const filter = $("filter").value.trim().toLowerCase();
+  const rows = lastRun.results.filter((r) => !filter ||
+    [r.posting.company, r.posting.role, r.posting.location].join(" ").toLowerCase().includes(filter));
+  $("results-title").textContent = lastRun.results.length + " jobs for \"" + lastRun.query.role + "\"" +
+    (lastRun.finishedAt ? " · " + new Date(lastRun.finishedAt).toLocaleString() : "");
+  $("results-body").innerHTML = rows.map((r, i) => {
+    const p = r.posting;
+    return "<tr><td>" + matchBadge(r.score) + "</td>" +
+      '<td><a href="' + escapeHtml(safeUrl(p.url)) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(p.role) + "</a>" +
+      '<div class="company">' + escapeHtml(p.company) + "</div></td>" +
+      '<td class="hide-sm">' + escapeHtml(p.location) + "</td>" +
+      '<td class="hide-sm">' + escapeHtml(p.salary_raw || "—") + "</td>" +
+      '<td class="hide-sm">' + escapeHtml(SOURCE_NAMES[p.source] || p.source) + "</td>" +
+      "<td>" + (r.rationale ? '<button type="button" class="why-btn" data-row="' + i + '" aria-expanded="false">Why?</button>' : "") + "</td></tr>" +
+      (r.rationale ? '<tr class="why-row hidden" id="why-' + i + '"><td colspan="6">' + escapeHtml(r.rationale) + "</td></tr>" : "");
+  }).join("");
+  $("no-results").classList.toggle("hidden", lastRun.results.length > 0);
+  const notice = $("results-notice");
+  const parts = [];
+  if (lastRun.stopReason) parts.push("Finished early: " + lastRun.stopReason);
+  if (lastRun.unscored) parts.push(lastRun.unscored + " jobs were found but not scored — they're listed below as \"Not scored\" (and under Saved jobs).");
+  notice.textContent = parts.join(" ");
+  notice.classList.toggle("hidden", parts.length === 0);
+  $("results-spent").textContent = lastRun.spent === undefined ? "" : "Claude cost for this search: about " +
+    money(lastRun.spent) + costSummary(lastRun.costs) + ".";
+  $("results-panel").classList.remove("hidden");
+  renderCoverage();
+}
+
+$("results-body").addEventListener("click", (event) => {
+  const btn = event.target.closest(".why-btn");
+  if (!btn) return;
+  const row = $("why-" + btn.dataset.row);
+  const open = row.classList.toggle("hidden") === false;
+  btn.setAttribute("aria-expanded", String(open));
+  btn.textContent = open ? "Hide" : "Why?";
+});
+$("filter").addEventListener("input", renderResults);
+
+function renderCoverage() {
+  const companies = (lastRun && lastRun.companies) || [];
+  if (!companies.length) { $("coverage-panel").classList.add("hidden"); return; }
+  const total = (c) => Object.values(c.found).reduce((a, b) => a + b, 0);
+  const sorted = [...companies].sort((a, b) => total(b) - total(a) || a.company.localeCompare(b.company));
+  const withJobs = companies.filter((c) => total(c) > 0).length;
+  $("coverage-title").textContent = "What was searched at each employer — jobs found at " + withJobs + " of " + companies.length;
+  $("coverage-body").innerHTML = sorted.map((c) => {
+    const found = Object.entries(c.found).map(([src, n]) => n + " via " + (SOURCE_NAMES[src] || src)).join(", ") || "None";
+    return "<tr><td>" + escapeHtml(c.company) + "</td><td>" + escapeHtml(found) + "</td><td>" + escapeHtml(money(c.cost_usd || 0)) + '</td><td class="muted">' +
+      escapeHtml(c.notes.join("; ")) + "</td></tr>";
+  }).join("");
+  $("coverage-panel").classList.remove("hidden");
+}
+
+function download(filename, text, type) {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const a = Object.assign(document.createElement("a"), { href: url, download: filename });
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+function fileStem() {
+  return "jobassist-" + (lastRun.query.role || "jobs").toLowerCase().replace(/[^a-z0-9]+/g, "-") +
+    "-" + new Date().toISOString().slice(0, 10);
+}
+
+$("download-csv").addEventListener("click", () => {
+  if (!lastRun) return;
+  const cell = (v) => '"' + String(v ?? "").replace(/"/g, '""') + '"';
+  const header = ["Match %", "Company", "Job title", "Location", "Salary", "Found on", "Link", "Why it fits"];
+  const lines = [header.map(cell).join(",")].concat(lastRun.results.map((r) => [
+    r.score === null || r.score === undefined ? "" : Math.round(r.score * 100), r.posting.company, r.posting.role, r.posting.location,
+    r.posting.salary_raw || "", SOURCE_NAMES[r.posting.source] || r.posting.source, r.posting.url, r.rationale || "",
+  ].map(cell).join(",")));
+  download(fileStem() + ".csv", "﻿" + lines.join("\r\n"), "text/csv");
+});
+
+$("download-report").addEventListener("click", async () => {
+  if (!lastRun) return;
+  try {
+    const body = await api("report", {
+      method: "POST",
+      body: JSON.stringify({
+        results: lastRun.results.filter((r) => r.score !== null && r.score !== undefined),
+        query: { ...lastRun.query, companies: [] },
+      }),
+    });
+    download(fileStem() + ".md", body.markdown, "text/markdown");
+  } catch (err) { showError(err.message); }
+});
+
+// --- Saved jobs ------------------------------------------------------------
+
+let savedJobs = null;
+
+$("saved-load").addEventListener("click", async () => {
+  $("saved-status").textContent = "Loading…";
+  try {
+    const body = await api("saved", {
+      method: "POST", body: JSON.stringify({ resume: resume ? resume.text : null }),
+    });
+    savedJobs = body.jobs.sort((a, b) =>
+      (b.score ?? -1) - (a.score ?? -1) || b.first_seen.localeCompare(a.first_seen));
+  } catch (err) {
+    $("saved-status").textContent = err.message;
+    return;
+  }
+  const scored = savedJobs.filter((j) => j.score !== null).length;
+  $("saved-status").textContent = savedJobs.length + " saved jobs, " + scored +
+    (resume ? " scored against your CV." : " scored (add your CV above to see scores).");
+  $("saved-load").textContent = "Refresh list";
+  $("saved-view").classList.remove("hidden");
+  renderSaved();
+});
+
+function savedRows() {
+  const filter = $("saved-filter").value.trim().toLowerCase();
+  const scoredOnly = $("saved-scored-only").checked;
+  return (savedJobs || []).filter((j) => (!scoredOnly || j.score !== null) && (!filter ||
+    [j.posting.company, j.posting.role, j.posting.location].join(" ").toLowerCase().includes(filter)));
+}
+
+function renderSaved() {
+  const rows = savedRows().slice(0, 500);
+  $("saved-body").innerHTML = rows.map((j, i) => {
+    const p = j.posting;
+    const why = j.rationale
+      ? '<button type="button" class="why-btn" data-saved="' + i + '" aria-expanded="false">Why?</button>' : "";
+    return "<tr><td>" + matchBadge(j.score) + "</td>" +
+      '<td><a href="' + escapeHtml(safeUrl(p.url)) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(p.role) + "</a>" +
+      '<div class="company">' + escapeHtml(p.company) + "</div></td>" +
+      '<td class="hide-sm">' + escapeHtml(p.location) + "</td>" +
+      '<td class="hide-sm">' + escapeHtml(p.salary_raw || "—") + "</td>" +
+      '<td class="hide-sm">' + escapeHtml(SOURCE_NAMES[p.source] || p.source) + "</td>" +
+      '<td class="hide-sm">' + escapeHtml(j.first_seen.slice(0, 10)) + "</td><td>" + why + "</td></tr>" +
+      (j.rationale ? '<tr class="why-row hidden" id="saved-why-' + i + '"><td colspan="7">' + escapeHtml(j.rationale) + "</td></tr>" : "");
+  }).join("") || '<tr><td colspan="7" class="muted">No saved jobs match.</td></tr>';
+}
+
+$("saved-filter").addEventListener("input", renderSaved);
+$("saved-scored-only").addEventListener("change", renderSaved);
+$("saved-body").addEventListener("click", (event) => {
+  const btn = event.target.closest(".why-btn");
+  if (!btn) return;
+  const open = $("saved-why-" + btn.dataset.saved).classList.toggle("hidden") === false;
+  btn.setAttribute("aria-expanded", String(open));
+  btn.textContent = open ? "Hide" : "Why?";
+});
+
+$("saved-csv").addEventListener("click", () => {
+  if (!savedJobs) return;
+  const cell = (v) => '"' + String(v ?? "").replace(/"/g, '""') + '"';
+  const header = ["Match %", "Company", "Job title", "Location", "Salary", "Found on", "First found", "Link", "Why it fits"];
+  const lines = [header.map(cell).join(",")].concat(savedRows().map((j) => [
+    j.score === null ? "" : Math.round(j.score * 100), j.posting.company, j.posting.role, j.posting.location,
+    j.posting.salary_raw || "", SOURCE_NAMES[j.posting.source] || j.posting.source, j.first_seen.slice(0, 10),
+    j.posting.url, j.rationale || "",
+  ].map(cell).join(",")));
+  download("jobassist-saved-jobs-" + new Date().toISOString().slice(0, 10) + ".csv", "\ufeff" + lines.join("\r\n"), "text/csv");
+});
+
+// --- Similar titles ---------------------------------------------------------
+// Looked up once per title by the server (saved permanently); the user's ticks and
+// additions are remembered here, per title.
+
+const titleMemo = store.get("titles") || {};
+
+function roleKey() { return $("role").value.trim().toLowerCase().replace(/\s+/g, " "); }
+
+function chosenTitles() {
+  const memo = titleMemo[roleKey()];
+  if (!$("aliases").checked || !memo) return [];
+  return memo.added.concat(memo.suggested).filter((t) => !memo.unticked.includes(t));
+}
+
+function renderTitles() {
+  const memo = titleMemo[roleKey()];
+  const block = $("titles-block");
+  if (!memo || !$("aliases").checked || !roleKey()) { block.classList.add("hidden"); return; }
+  const all = memo.added.concat(memo.suggested);
+  $("titles").innerHTML = all.map((t) =>
+    '<label><input type="checkbox" value="' + escapeHtml(t) + '"' +
+    (memo.unticked.includes(t) ? "" : " checked") + "> " + escapeHtml(t) + "</label>").join("");
+  const n = chosenTitles().length;
+  $("titles-status").textContent = "Searching \"" + $("role").value.trim() + "\" plus " + n +
+    " similar title" + (n === 1 ? "" : "s") + ". Saved — this title won't be looked up again.";
+  block.classList.remove("hidden");
+}
+
+let titlesTimer = null;
+function scheduleTitles() {
+  clearTimeout(titlesTimer);
+  titlesTimer = setTimeout(loadTitles, 900);
+}
+async function loadTitles() {
+  const key = roleKey();
+  if (!key || !$("aliases").checked) { renderTitles(); return; }
+  if (!titleMemo[key]) {
+    $("titles-block").classList.remove("hidden");
+    $("titles").innerHTML = "";
+    $("titles-status").textContent = "Finding similar titles… (only the first time you search this title)";
+    try {
+      const body = await api("titles", { method: "POST", body: JSON.stringify({ role: $("role").value.trim() }) });
+      titleMemo[key] = { suggested: body.titles, unticked: [], added: [] };
+      store.set("titles", titleMemo);
+    } catch (err) {
+      $("titles-status").textContent = err.message;
+      return;
+    }
+  }
+  if (key === roleKey()) renderTitles();
+}
+
+$("role").addEventListener("input", scheduleTitles);
+$("role").addEventListener("change", loadTitles);
+$("aliases").addEventListener("change", loadTitles);
+$("titles").addEventListener("change", (event) => {
+  const memo = titleMemo[roleKey()];
+  if (!memo || !event.target.value) return;
+  const t = event.target.value;
+  memo.unticked = memo.unticked.filter((x) => x !== t);
+  if (!event.target.checked) memo.unticked.push(t);
+  store.set("titles", titleMemo);
+  renderTitles();
+});
+function addTitle() {
+  const memo = titleMemo[roleKey()];
+  const t = $("title-add").value.trim();
+  if (!memo || !t) return;
+  if (![...memo.added, ...memo.suggested].some((x) => x.toLowerCase() === t.toLowerCase())) memo.added.push(t);
+  memo.unticked = memo.unticked.filter((x) => x.toLowerCase() !== t.toLowerCase());
+  $("title-add").value = "";
+  store.set("titles", titleMemo);
+  renderTitles();
+}
+$("title-add-btn").addEventListener("click", addTitle);
+$("title-add").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); addTitle(); } });
+
+// --- Make an employer list -------------------------------------------------
+
+function listBody() {
+  return JSON.stringify({
+    text: $("list-text").value,
+    university: $("list-university").value.trim() || null,
+    filename: $("list-filename").value.trim() || "Employer list",
+  });
+}
+
+function showListPreview(body) {
+  const counts = {};
+  body.employers.forEach((e) => { counts[e.bucket] = (counts[e.bucket] || 0) + 1; });
+  const groups = body.buckets.map((b) => escapeHtml(b) + " (" + counts[b] + ")").join(", ");
+  $("list-result").innerHTML = "<p><strong>" + body.employers.length + " employers</strong> in " +
+    body.buckets.length + " groups, " + body.starred + " starred" +
+    (body.university ? " · alumni column: " + escapeHtml(body.university) : "") + ".<br>" + groups + "</p>" +
+    (body.warnings.length ? '<ul class="warnings">' + body.warnings.map((w) => "<li>" + escapeHtml(w) + "</li>").join("") + "</ul>" : "");
+}
+
+async function previewList() {
+  try {
+    const body = await api("lists/preview", { method: "POST", body: listBody() });
+    showListPreview(body);
+    return body;
+  } catch (err) {
+    $("list-result").textContent = err.message;
+    return null;
+  }
+}
+
+$("list-text").addEventListener("input", () => store.set("listDraft", $("list-text").value));
+$("list-load").addEventListener("click", () => $("list-file").click());
+$("list-file").addEventListener("change", async (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+  $("list-text").value = await file.text();
+  $("list-filename").value = file.name.replace(/\.[^.]+$/, "");
+  store.set("listDraft", $("list-text").value);
+  event.target.value = "";
+  previewList();
+});
+$("list-example").addEventListener("click", async () => {
+  if ($("list-text").value.trim() && !confirm("Replace what you've typed with the example?")) return;
+  try {
+    $("list-text").value = (await api("lists/template")).text;
+    previewList();
+  } catch (err) { $("list-result").textContent = err.message; }
+});
+$("list-check").addEventListener("click", previewList);
+
+$("list-download").addEventListener("click", async () => {
+  const preview = await previewList();
+  if (!preview || !preview.employers.length) return;
+  try {
+    const resp = await fetch("/api/lists/build", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: listBody(),
+    });
+    if (!resp.ok) throw new Error(((await resp.json().catch(() => ({}))).detail) || "Couldn't build the file.");
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = Object.assign(document.createElement("a"), {
+      href: url, download: ($("list-filename").value.trim() || "Employer list") + ".xlsx",
+    });
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (err) { $("list-result").textContent = err.message; }
+});
+
+$("list-use").addEventListener("click", async () => {
+  const preview = await previewList();
+  if (!preview || !preview.employers.length) return;
+  employerList = {
+    filename: ($("list-filename").value.trim() || "Employer list") + " (typed list)",
+    employers: preview.employers.map((e) => ({
+      name: e.name, careers_url: e.careers_url, bucket: e.bucket, starred: e.starred,
+    })),
+    buckets: preview.buckets,
+  };
+  store.set("employers", employerList);
+  const form = store.get("form") || {};
+  delete form.buckets;
+  store.set("form", form);
+  document.querySelector("input[name=scope][value=list]").checked = true;
+  $("list-options").classList.remove("hidden");
+  renderEmployers();
+  scheduleEstimate();
+  $("xlsx-status").scrollIntoView({ behavior: "smooth", block: "center" });
+});
+
+// --- Start -----------------------------------------------------------------
+
+restoreForm();
+showStarredLimit();
+loadTitles();
+$("list-text").value = store.get("listDraft") || "";
+renderResume();
+renderEmployers();
+lastRun = store.get("lastRun");
+if (lastRun) renderResults();
+checkServices();
+if (store.get("activeRun")) startPolling();
+updateRunButton();
+scheduleEstimate();
+</script>
+</body>
+</html>

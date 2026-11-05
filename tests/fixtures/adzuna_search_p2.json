@@ -1,0 +1,16 @@
+{
+  "count": 3,
+  "results": [
+    {
+      "id": "adzuna-003",
+      "title": "Software Engineer (Graduate)",
+      "company": {"display_name": "StartupXYZ"},
+      "location": {"display_name": "Bristol"},
+      "redirect_url": "https://www.adzuna.co.uk/jobs/details/adzuna-003",
+      "created": "2024-01-13T08:00:00Z",
+      "description": "Graduate level software engineering role.",
+      "salary_min": 35000.0,
+      "salary_max": null
+    }
+  ]
+}

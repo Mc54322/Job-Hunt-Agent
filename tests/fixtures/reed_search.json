@@ -1,0 +1,44 @@
+{
+  "totalResults": 3,
+  "results": [
+    {
+      "jobId": 12345,
+      "employerName": "Acme Corp",
+      "jobTitle": "Software Engineer",
+      "locationName": "London",
+      "minimumSalary": 50000.0,
+      "maximumSalary": 70000.0,
+      "currency": "GBP",
+      "expirationDate": "01/03/2025",
+      "date": "15/01/2025",
+      "jobUrl": "https://www.reed.co.uk/jobs/software-engineer/12345",
+      "jobDescription": "We are looking for a skilled Software Engineer to join our growing team."
+    },
+    {
+      "jobId": 12346,
+      "employerName": "BetaCorp",
+      "jobTitle": "Python Developer",
+      "locationName": "Manchester",
+      "minimumSalary": null,
+      "maximumSalary": null,
+      "currency": "GBP",
+      "expirationDate": "01/03/2025",
+      "date": "10/01/2025",
+      "jobUrl": "https://www.reed.co.uk/jobs/python-developer/12346",
+      "jobDescription": "Python developer needed for exciting fintech project."
+    },
+    {
+      "jobId": 12347,
+      "employerName": "GammaTech",
+      "jobTitle": "Backend Engineer",
+      "locationName": "Remote",
+      "minimumSalary": 60000.0,
+      "maximumSalary": null,
+      "currency": "GBP",
+      "expirationDate": "15/03/2025",
+      "date": "20/01/2025",
+      "jobUrl": "https://www.reed.co.uk/jobs/backend-engineer/12347",
+      "jobDescription": "Backend engineer role with flexible working."
+    }
+  ]
+}

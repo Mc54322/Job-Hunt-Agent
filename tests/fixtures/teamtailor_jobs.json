@@ -1,0 +1,46 @@
+{
+  "data": [
+    {
+      "id": "tt-001",
+      "type": "jobs",
+      "attributes": {
+        "title": "Software Engineer",
+        "body-plain": "Join our engineering team and work on challenging problems.",
+        "created-at": "2025-01-15T10:00:00.000Z"
+      },
+      "relationships": {
+        "locations": {
+          "data": [{"id": "loc-1", "type": "locations"}]
+        }
+      },
+      "links": {
+        "careersite-job-url": "https://acme.teamtailor.com/jobs/tt-001-software-engineer"
+      }
+    },
+    {
+      "id": "tt-002",
+      "type": "jobs",
+      "attributes": {
+        "title": "Product Manager",
+        "body-plain": "We are looking for an experienced Product Manager.",
+        "created-at": "2025-01-10T10:00:00.000Z"
+      },
+      "relationships": {
+        "locations": {
+          "data": []
+        }
+      },
+      "links": {
+        "careersite-job-url": "https://acme.teamtailor.com/jobs/tt-002-product-manager"
+      }
+    }
+  ],
+  "included": [
+    {
+      "id": "loc-1",
+      "type": "locations",
+      "attributes": {"city": "London"}
+    }
+  ],
+  "meta": {"total-count": 2}
+}
