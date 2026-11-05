@@ -7,6 +7,7 @@ from pathlib import Path
 
 import httpx
 import openpyxl
+import pytest
 import respx
 from typer.testing import CliRunner
 
@@ -213,3 +214,26 @@ def test_search_sends_refresh_and_company_sites(tmp_path: Path) -> None:
         )
     sent = json.loads(route.calls[0].request.content)
     assert sent["refresh"] is True and sent["search_company_sites"] is True
+
+
+@pytest.mark.parametrize(
+    ("extra", "expected"),
+    [([], 5.0), (["--starred"], 2.0), (["--starred", "--budget", "3.5"], 3.5)],
+)
+def test_search_budget_defaults_lower_for_starred(
+    tmp_path: Path, extra: list[str], expected: float
+) -> None:
+    resume = tmp_path / "resume.txt"
+    resume.write_text("My resume.")
+    book = tmp_path / "employers.xlsx"
+    _employer_book(book)
+    with respx.mock:
+        route = respx.post("http://localhost:8003/recommend").mock(
+            return_value=httpx.Response(200, json={"results": []})
+        )
+        runner.invoke(
+            app,
+            ["search", "Data Analyst", "full-time", "--resume", str(resume),
+             "--employers", str(book), *extra],
+        )
+    assert json.loads(route.calls[0].request.content)["budget_usd"] == expected

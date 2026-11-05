@@ -75,7 +75,7 @@ def _cache(request: Request) -> RemoteCacheClient:
 
 class AliasRequest(BaseModel):
     role: str
-    job_type: str
+    job_type: str | None = None
 
 
 class AliasResponse(BaseModel):
@@ -90,6 +90,7 @@ class SearchRequest(BaseModel):
     run_id: str | None = None  # progress is published under this id when given
     budget_usd: float | None = None  # stop making Claude calls past this spend
     company_budget_usd: float | None = None  # per-employer Claude spend limit
+    deep_search: bool = False  # web-search fallback for careers pages (expensive)
 
 
 class PostingsResponse(BaseModel):
@@ -189,9 +190,7 @@ async def stop_search(run_id: str) -> dict[str, bool]:
     progress = _PROGRESS.get(run_id)
     if progress is None:
         raise HTTPException(status_code=404, detail="unknown run")
-    progress.cancelled = True
-    if progress.meter is not None:
-        progress.meter.cancel()
+    progress.stop()
     return {"ok": True}
 
 
@@ -241,6 +240,7 @@ async def search(
         refresh=req.refresh,
         company_sites=req.search_company_sites,
         employer_delay=_EMPLOYER_SEARCH_DELAY,
+        deep_search=req.deep_search,
     )
     meter = CostMeter(req.budget_usd, req.company_budget_usd)
     settings.meter = meter
@@ -251,7 +251,10 @@ async def search(
             _PROGRESS.popitem(last=False)
 
     roles = [query.role]
-    if req.expand_aliases and client is not None:
+    if query.role_aliases:
+        # Titles chosen on the page: use exactly those, no lookup.
+        roles.extend(t for t in query.role_aliases if t.strip())
+    elif req.expand_aliases and client is not None:
         generator = AliasGenerator(client, _cache(request), meter=meter)
         try:
             roles.extend(await generator.generate(query.role, query.job_type))

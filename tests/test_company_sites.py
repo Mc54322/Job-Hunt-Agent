@@ -188,13 +188,15 @@ async def test_finder_falls_back_to_web_search_when_guess_fails_check() -> None:
     respx.get("https://careers.acme.example/jobs").mock(return_value=httpx.Response(404))
     llm = _llm(_text_response(_FOUND), _text_response(_FOUND))
     async with httpx.AsyncClient() as client:
-        finder = CareersPageFinder(llm, MemoryCache(), http=client, robots=RobotsChecker(client))
+        finder = CareersPageFinder(
+            llm, MemoryCache(), http=client, robots=RobotsChecker(client), web_search=True
+        )
         page = await finder.find("Acme")
     assert page is not None
     calls = llm.messages.create.await_args_list  # type: ignore[attr-defined]
     assert len(calls) == 2
     assert calls[1].kwargs["tools"][0]["type"] == "web_search_20260209"
-    assert calls[1].kwargs["tools"][0]["max_uses"] == 2
+    assert calls[1].kwargs["tools"][0]["max_uses"] == 1
 
 
 @pytest.mark.asyncio
@@ -212,13 +214,50 @@ async def test_finder_accepts_guess_that_looks_like_jobs_page() -> None:
 
 
 @pytest.mark.asyncio
+@respx.mock
+async def test_finder_never_web_searches_by_default() -> None:
+    respx.get("https://careers.acme.example/robots.txt").mock(return_value=httpx.Response(404))
+    respx.get("https://careers.acme.example/jobs").mock(return_value=httpx.Response(404))
+    llm = _llm(_text_response(_FOUND))
+    cache = MemoryCache()
+    async with httpx.AsyncClient() as client:
+        finder = CareersPageFinder(llm, cache, http=client, robots=RobotsChecker(client))
+        assert await finder.find("Acme") is None
+    assert llm.messages.create.await_count == 1  # the cheap guess only
+    # A later deep search retries a "not found" that never used web search.
+    deep = _llm(_text_response(_NOT_FOUND), _text_response(_NOT_FOUND))
+    assert await CareersPageFinder(deep, cache, web_search=True).find("Acme") is None
+    assert deep.messages.create.await_count == 2  # type: ignore[attr-defined]
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_finder_follows_homepage_careers_link_for_free() -> None:
+    guess = json.dumps({"found": False, "homepage": "https://acme.example/"})
+    respx.get("https://acme.example/robots.txt").mock(return_value=httpx.Response(404))
+    respx.get("https://acme.example/").mock(return_value=httpx.Response(
+        200, text='<a href="/about">About</a> <a href="/work-with-us/vacancies">Careers</a>'
+    ))
+    respx.get("https://acme.example/work-with-us/vacancies").mock(return_value=httpx.Response(
+        200, text="Current vacancies. Search jobs and apply for open positions."
+    ))
+    llm = _llm(_text_response(guess))
+    async with httpx.AsyncClient() as client:
+        finder = CareersPageFinder(llm, MemoryCache(), http=client, robots=RobotsChecker(client))
+        page = await finder.find("Acme")
+    assert page is not None
+    assert page.listing_url == "https://acme.example/work-with-us/vacancies"
+    assert llm.messages.create.await_count == 1  # type: ignore[attr-defined]
+
+
+@pytest.mark.asyncio
 async def test_finder_resumes_paused_search() -> None:
     llm = _llm(
         _text_response(_NOT_FOUND),
         _text_response("", stop_reason="pause_turn"),
         _text_response(_FOUND),
     )
-    page = await CareersPageFinder(llm, MemoryCache()).find("Acme")
+    page = await CareersPageFinder(llm, MemoryCache(), web_search=True).find("Acme")
     assert page is not None
     third_call = llm.messages.create.await_args_list[2].kwargs  # type: ignore[attr-defined]
     assert third_call["messages"][-1]["role"] == "assistant"
@@ -228,8 +267,8 @@ async def test_finder_resumes_paused_search() -> None:
 async def test_finder_caches_not_found_but_not_api_errors() -> None:
     cache = MemoryCache()
     llm = _llm(_text_response(_NOT_FOUND), _text_response(_NOT_FOUND))
-    assert await CareersPageFinder(llm, cache).find("Nowhere Ltd") is None
-    assert await CareersPageFinder(llm, cache).find("Nowhere Ltd") is None
+    assert await CareersPageFinder(llm, cache, web_search=True).find("Nowhere Ltd") is None
+    assert await CareersPageFinder(llm, cache, web_search=True).find("Nowhere Ltd") is None
     assert llm.messages.create.await_count == 2  # guess + search, once; then cached
     assert await CareersPageFinder(llm, cache).is_cached("Nowhere Ltd")
 
@@ -436,3 +475,44 @@ async def test_employer_search_sites_without_llm_explains() -> None:
             client, MemoryCache(), SearchSettings(company_sites=True)
         ).search_companies(query, [query.role])
     assert statuses[0].notes == ["website search needs the Anthropic API key"]
+
+
+
+# ---------------------------------------------------------------------------
+# Page-reading fixes (Nov 2026)
+# ---------------------------------------------------------------------------
+
+
+def test_mentions_role_ignores_word_order_and_punctuation() -> None:
+    from jobassist.Microservices.web_scraper.sources.company_pages.company_site import (
+        mentions_role,
+    )
+
+    assert mentions_role("Analyst, Data & Insights — London", ["Data Analyst"])
+    assert mentions_role("Engineer – AI Platform", ["AI Engineer"])
+    assert not mentions_role("Data protection officer\nSenior analyst", ["Data Analyst"])
+    assert not mentions_role("Chef", ["AI Engineer"])
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_content_rich_page_without_role_is_rendered() -> None:
+    """A page with lots of its own text but a script-loaded job list must be rendered."""
+    respx.get("https://acme.example/robots.txt").mock(return_value=httpx.Response(404))
+    respx.get("https://acme.example/careers").mock(return_value=httpx.Response(
+        200, text="<html><body>" + "".join(f'<a href="/p{i}">Page {i}</a>' for i in range(20))
+        + "<p>" + "Why work with us. " * 60 + "</p></body></html>"
+    ))
+    llm = _llm(_text_response(_EXTRACTED))
+    async with httpx.AsyncClient() as client:
+        searcher = CompanySiteSearcher(
+            client, PageExtractor(llm, MemoryCache()), RobotsChecker(client)
+        )
+        rendered = AsyncMock(return_value=_LISTING_HTML)
+        searcher._render = rendered  # type: ignore[method-assign]
+        searcher._use_browser = True
+        outcome = await searcher.search(
+            "Acme", CareersPage(listing_url="https://acme.example/careers"), _QUERY
+        )
+    rendered.assert_awaited_once()
+    assert [p.role for p in outcome.postings] == ["Data Analyst", "Senior Data Analyst"]

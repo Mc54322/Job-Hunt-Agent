@@ -27,3 +27,7 @@ resume.txt
 
 # macOS
 .DS_Store
+
+# packaging build output and downloaded Go toolchain
+/dist/
+/packaging/.toolchain/

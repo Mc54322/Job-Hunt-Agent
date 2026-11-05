@@ -78,3 +78,14 @@ def test_proxy_allows_saved_jobs(client: TestClient) -> None:
             return_value=httpx.Response(200, json={"jobs": []})
         )
         assert client.post("/api/saved", json={}).json() == {"jobs": []}
+
+
+
+def test_proxy_allows_similar_titles(client: TestClient) -> None:
+    with respx.mock:
+        respx.post("http://localhost:8003/titles").mock(
+            return_value=httpx.Response(200, json={"titles": ["Data Scientist"]})
+        )
+        assert client.post("/api/titles", json={"role": "AI Engineer"}).json() == {
+            "titles": ["Data Scientist"]
+        }

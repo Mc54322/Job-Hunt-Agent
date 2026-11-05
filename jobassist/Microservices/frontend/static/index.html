@@ -153,6 +153,15 @@
         <input type="text" id="location" value="UK">
       </div>
     </div>
+    <div id="titles-block" class="hidden">
+      <label>Also search for <span class="hint">— similar titles with overlapping skills. Untick any you don't want; scoring shows which jobs really fit.</span></label>
+      <div id="titles" class="chips"></div>
+      <div class="toolbar" style="margin-top:10px">
+        <input type="text" id="title-add" placeholder="Add another title, e.g. Data Engineer">
+        <button type="button" id="title-add-btn">Add</button>
+      </div>
+      <p id="titles-status" class="hint"></p>
+    </div>
   </section>
 
   <section class="panel">
@@ -173,7 +182,7 @@
       </div>
       <div id="list-filters" class="hidden">
         <label class="check"><input type="checkbox" id="starred-only">
-          <span>Only my starred employers <span class="hint">(rows with "Y" in "My star")</span></span></label>
+          <span>Only my starred employers <span class="hint">(rows with "Y" in "My star" — spending limit <span id="starred-limit">$2.00</span>)</span></span></label>
         <div id="bucket-block">
           <label>Groups to include</label>
           <div id="buckets" class="chips"></div>
@@ -182,7 +191,7 @@
       </div>
       <label class="check"><input type="checkbox" id="company-sites" checked>
         <span>Also search each company's own website
-          <span class="hint"><br>Finds jobs that aren't on job sites. Slower — the first time it can take 10–20 minutes for 100 employers — and uses some Anthropic credit (see the estimate next to "Find jobs"; your spending limit always applies). Results are saved for 24 hours, so running it again is fast and free.</span></span></label>
+          <span class="hint"><br>Finds jobs that aren't on job sites. Each website is capped at $0.20 and 60 seconds, then skipped. The first time it can take 10–20 minutes for 100 employers and uses some Anthropic credit (see the estimate next to "Find jobs"; your spending limit always applies). Results are saved for 24 hours, so running it again is fast and free.</span></span></label>
     </div>
 
     <details>
@@ -197,15 +206,21 @@
           <input type="number" id="budget" min="0.1" step="0.5" value="5">
         </div>
         <div>
-          <label for="company-budget">Limit per employer website <span class="hint">(US$)</span></label>
-          <input type="number" id="company-budget" min="0.01" step="0.05" value="0.50">
+          <label for="starred-budget">Limit when searching only starred employers <span class="hint">(US$)</span></label>
+          <input type="number" id="starred-budget" min="0.1" step="0.5" value="2">
+        </div>
+        <div>
+          <label for="company-budget">Hard cap per employer <span class="hint">(US$)</span></label>
+          <input type="number" id="company-budget" min="0.01" step="0.05" value="0.20">
         </div>
       </div>
-      <p class="hint">When the limit is reached JobAssist stops using Claude, keeps everything found so far and tells you why. An employer whose website would cost more than its limit is skipped and flagged.</p>
+      <p class="hint">When the limit is reached JobAssist stops using Claude, keeps everything found so far and tells you why. An employer whose website would cost more than its cap, or takes longer than 60 seconds, is skipped and flagged. Stopping the search moves straight on to scoring what was found.</p>
       <label class="check"><input type="checkbox" id="aliases" checked>
         <span>Also look for similar job titles <span class="hint">(e.g. "Data Analyst" also finds "Insights Analyst")</span></span></label>
       <label class="check"><input type="checkbox" id="one-per-company" checked>
         <span>Show only the best match at each company</span></label>
+      <label class="check"><input type="checkbox" id="deep-search">
+        <span>Deep search for careers pages JobAssist can't find <span class="hint">— uses web search, which costs $0.10–$0.80 per employer and rarely finds more. Only runs if the per-employer cap is at least $0.40.</span></span></label>
       <label class="check"><input type="checkbox" id="refresh">
         <span>Search again from scratch <span class="hint">— ignore results saved in the last 24 hours (slower, uses more credit)</span></span></label>
     </details>
@@ -228,9 +243,9 @@
     <div id="progress-message" class="muted"></div>
     <div class="toolbar" style="margin-top:12px">
       <strong id="progress-spent"></strong>
-      <button type="button" id="stop">Stop search</button>
+      <button type="button" id="stop">Stop searching &amp; score what's found</button>
     </div>
-    <p class="hint">You can leave this page open and come back — the search keeps running. "Stop search" keeps and scores what has been found so far.</p>
+    <p class="hint">You can leave this page open and come back — the search keeps running. Stopping during the search goes straight to scoring the jobs found so far; stopping during scoring shows what's been scored.</p>
   </section>
 
   <div id="run-error" class="banner error hidden"></div>
@@ -522,7 +537,8 @@ function saveForm() {
     scope: scope(), starredOnly: $("starred-only").checked, companySites: $("company-sites").checked,
     maxResults: $("max-results").value, aliases: $("aliases").checked,
     onePerCompany: $("one-per-company").checked,
-    budget: $("budget").value, companyBudget: $("company-budget").value,
+    budget: $("budget").value, starredBudget: $("starred-budget").value,
+    companyBudget: $("company-budget").value, deepSearch: $("deep-search").checked,
     buckets: [...document.querySelectorAll("#buckets input:checked")].map((i) => i.value),
   });
 }
@@ -539,7 +555,9 @@ function restoreForm() {
   if (f.aliases !== undefined) $("aliases").checked = f.aliases;
   if (f.onePerCompany !== undefined) $("one-per-company").checked = f.onePerCompany;
   if (f.budget) $("budget").value = f.budget;
+  if (f.starredBudget) $("starred-budget").value = f.starredBudget;
   if (f.companyBudget) $("company-budget").value = f.companyBudget;
+  $("deep-search").checked = Boolean(f.deepSearch);
   $("list-options").classList.toggle("hidden", scope() !== "list");
 }
 
@@ -551,6 +569,7 @@ $("run").addEventListener("click", async () => {
   const query = {
     role: $("role").value.trim(),
     job_type: $("job-type").value,
+    role_aliases: chosenTitles(),
     location: $("location").value.trim() || null,
     companies: employers.map((e) => e.name),
     company_urls: Object.fromEntries(employers.filter((e) => e.careers_url).map((e) => [e.name, e.careers_url])),
@@ -568,6 +587,7 @@ $("run").addEventListener("click", async () => {
         search_company_sites: useList && $("company-sites").checked,
         budget_usd: budget(),
         company_budget_usd: companyBudget(),
+        deep_search: $("deep-search").checked,
       }),
     });
     $("refresh").checked = false;
@@ -581,7 +601,8 @@ $("run").addEventListener("click", async () => {
 let pollTimer = null;
 function startPolling() {
   $("stop").disabled = false;
-  $("stop").textContent = "Stop search";
+  $("stop").dataset.phase = "searching";
+  $("stop").textContent = "Stop searching & score what's found";
   $("progress-panel").classList.remove("hidden");
   $("results-panel").classList.add("hidden");
   $("coverage-panel").classList.add("hidden");
@@ -617,8 +638,11 @@ async function poll() {
   $("progress-panel").classList.add("hidden");
   updateRunButton();
   if (status.state === "error") { showError(status.error); return; }
+  // Jobs found but not scored (Stop, a limit, no credit) are still listed, marked "Not scored".
+  const unscored = (status.unscored_postings || []).map((p) => ({ posting: p, score: null, rationale: null }));
   lastRun = {
-    query: active.query, results: status.results, companies: status.companies, finishedAt: status.finished_at,
+    query: active.query, results: status.results.concat(unscored), companies: status.companies,
+    finishedAt: status.finished_at,
     spent: status.spent_usd, costs: status.costs, stopReason: status.stop_reason, unscored: status.unscored,
   };
   store.set("lastRun", lastRun);
@@ -643,6 +667,13 @@ function renderProgress(status) {
   $("progress-title").textContent = status.phase === "scoring" ? "Scoring jobs against your CV…" : "Searching…";
   const counts = status.total > 0 ? " (" + status.done + " of " + status.total + ")" : "";
   $("progress-message").textContent = status.message + counts + " · " + formatElapsed(status.started_at);
+  // One Stop press per phase: searching → go to scoring; scoring → finish now.
+  const stopBtn = $("stop");
+  if (status.phase === "scoring" && stopBtn.dataset.phase !== "scoring") {
+    stopBtn.dataset.phase = "scoring";
+    stopBtn.disabled = false;
+    stopBtn.textContent = "Stop scoring";
+  }
   $("progress-spent").textContent = "Spent so far: " + money(status.spent_usd) +
     (status.budget_usd ? " of " + money(status.budget_usd) : "");
 }
@@ -653,8 +684,17 @@ function showError(message) {
 }
 
 function money(usd) { return "$" + (Number(usd) || 0).toFixed(2); }
-function budget() { return Math.max(0.1, parseFloat($("budget").value) || 5); }
-function companyBudget() { return Math.max(0.01, parseFloat($("company-budget").value) || 0.5); }
+function starredOnlySearch() { return scope() === "list" && $("starred-only").checked; }
+// Searching only starred employers has its own, lower limit ($2 by default).
+function budget() {
+  return starredOnlySearch()
+    ? Math.max(0.1, parseFloat($("starred-budget").value) || 2)
+    : Math.max(0.1, parseFloat($("budget").value) || 5);
+}
+function showStarredLimit() {
+  $("starred-limit").textContent = money(Math.max(0.1, parseFloat($("starred-budget").value) || 2));
+}
+function companyBudget() { return Math.max(0.01, parseFloat($("company-budget").value) || 0.2); }
 function costSummary(costs) {
   if (!costs || !costs.length) return "";
   const byStep = {};
@@ -670,7 +710,7 @@ $("stop").addEventListener("click", async () => {
   const active = store.get("activeRun");
   if (!active) return;
   $("stop").disabled = true;
-  $("stop").textContent = "Stopping…";
+  $("stop").textContent = $("stop").dataset.phase === "scoring" ? "Stopping…" : "Moving on to scoring…";
   try { await api("runs/" + active.id + "/stop", { method: "POST" }); }
   catch (err) { showError(err.message); }
 });
@@ -697,6 +737,9 @@ async function refreshEstimate() {
         },
         search_company_sites: useList && $("company-sites").checked,
         expand_aliases: $("aliases").checked,
+        deep_search: $("deep-search").checked,
+        budget_usd: budget(),
+        company_budget_usd: companyBudget(),
       }),
     });
     const limit = budget();
@@ -705,8 +748,9 @@ async function refreshEstimate() {
       ". Saved results cost nothing.";
   } catch { el.textContent = ""; }
 }
-["role", "job-type", "max-results", "budget", "company-sites", "aliases", "starred-only"].forEach((id) =>
+["role", "job-type", "max-results", "budget", "starred-budget", "company-budget", "deep-search", "company-sites", "aliases", "starred-only"].forEach((id) =>
   $(id).addEventListener("change", scheduleEstimate));
+$("starred-budget").addEventListener("input", showStarredLimit);
 $("role").addEventListener("input", scheduleEstimate);
 $("buckets").addEventListener("change", scheduleEstimate);
 document.querySelectorAll("input[name=scope]").forEach((r) => r.addEventListener("change", scheduleEstimate));
@@ -737,14 +781,14 @@ function renderResults() {
       '<td class="hide-sm">' + escapeHtml(p.location) + "</td>" +
       '<td class="hide-sm">' + escapeHtml(p.salary_raw || "—") + "</td>" +
       '<td class="hide-sm">' + escapeHtml(SOURCE_NAMES[p.source] || p.source) + "</td>" +
-      '<td><button type="button" class="why-btn" data-row="' + i + '" aria-expanded="false">Why?</button></td></tr>' +
-      '<tr class="why-row hidden" id="why-' + i + '"><td colspan="6">' + escapeHtml(r.rationale) + "</td></tr>";
+      "<td>" + (r.rationale ? '<button type="button" class="why-btn" data-row="' + i + '" aria-expanded="false">Why?</button>' : "") + "</td></tr>" +
+      (r.rationale ? '<tr class="why-row hidden" id="why-' + i + '"><td colspan="6">' + escapeHtml(r.rationale) + "</td></tr>" : "");
   }).join("");
   $("no-results").classList.toggle("hidden", lastRun.results.length > 0);
   const notice = $("results-notice");
   const parts = [];
   if (lastRun.stopReason) parts.push("Finished early: " + lastRun.stopReason);
-  if (lastRun.unscored) parts.push(lastRun.unscored + " more jobs were found but not scored — they're listed under Saved jobs below.");
+  if (lastRun.unscored) parts.push(lastRun.unscored + " jobs were found but not scored — they're listed below as \"Not scored\" (and under Saved jobs).");
   notice.textContent = parts.join(" ");
   notice.classList.toggle("hidden", parts.length === 0);
   $("results-spent").textContent = lastRun.spent === undefined ? "" : "Claude cost for this search: about " +
@@ -796,8 +840,8 @@ $("download-csv").addEventListener("click", () => {
   const cell = (v) => '"' + String(v ?? "").replace(/"/g, '""') + '"';
   const header = ["Match %", "Company", "Job title", "Location", "Salary", "Found on", "Link", "Why it fits"];
   const lines = [header.map(cell).join(",")].concat(lastRun.results.map((r) => [
-    Math.round(r.score * 100), r.posting.company, r.posting.role, r.posting.location,
-    r.posting.salary_raw || "", SOURCE_NAMES[r.posting.source] || r.posting.source, r.posting.url, r.rationale,
+    r.score === null || r.score === undefined ? "" : Math.round(r.score * 100), r.posting.company, r.posting.role, r.posting.location,
+    r.posting.salary_raw || "", SOURCE_NAMES[r.posting.source] || r.posting.source, r.posting.url, r.rationale || "",
   ].map(cell).join(",")));
   download(fileStem() + ".csv", "﻿" + lines.join("\r\n"), "text/csv");
 });
@@ -807,7 +851,10 @@ $("download-report").addEventListener("click", async () => {
   try {
     const body = await api("report", {
       method: "POST",
-      body: JSON.stringify({ results: lastRun.results, query: { ...lastRun.query, companies: [] } }),
+      body: JSON.stringify({
+        results: lastRun.results.filter((r) => r.score !== null && r.score !== undefined),
+        query: { ...lastRun.query, companies: [] },
+      }),
     });
     download(fileStem() + ".md", body.markdown, "text/markdown");
   } catch (err) { showError(err.message); }
@@ -882,6 +929,83 @@ $("saved-csv").addEventListener("click", () => {
   ].map(cell).join(",")));
   download("jobassist-saved-jobs-" + new Date().toISOString().slice(0, 10) + ".csv", "\ufeff" + lines.join("\r\n"), "text/csv");
 });
+
+// --- Similar titles ---------------------------------------------------------
+// Looked up once per title by the server (saved permanently); the user's ticks and
+// additions are remembered here, per title.
+
+const titleMemo = store.get("titles") || {};
+
+function roleKey() { return $("role").value.trim().toLowerCase().replace(/\s+/g, " "); }
+
+function chosenTitles() {
+  const memo = titleMemo[roleKey()];
+  if (!$("aliases").checked || !memo) return [];
+  return memo.added.concat(memo.suggested).filter((t) => !memo.unticked.includes(t));
+}
+
+function renderTitles() {
+  const memo = titleMemo[roleKey()];
+  const block = $("titles-block");
+  if (!memo || !$("aliases").checked || !roleKey()) { block.classList.add("hidden"); return; }
+  const all = memo.added.concat(memo.suggested);
+  $("titles").innerHTML = all.map((t) =>
+    '<label><input type="checkbox" value="' + escapeHtml(t) + '"' +
+    (memo.unticked.includes(t) ? "" : " checked") + "> " + escapeHtml(t) + "</label>").join("");
+  const n = chosenTitles().length;
+  $("titles-status").textContent = "Searching \"" + $("role").value.trim() + "\" plus " + n +
+    " similar title" + (n === 1 ? "" : "s") + ". Saved — this title won't be looked up again.";
+  block.classList.remove("hidden");
+}
+
+let titlesTimer = null;
+function scheduleTitles() {
+  clearTimeout(titlesTimer);
+  titlesTimer = setTimeout(loadTitles, 900);
+}
+async function loadTitles() {
+  const key = roleKey();
+  if (!key || !$("aliases").checked) { renderTitles(); return; }
+  if (!titleMemo[key]) {
+    $("titles-block").classList.remove("hidden");
+    $("titles").innerHTML = "";
+    $("titles-status").textContent = "Finding similar titles… (only the first time you search this title)";
+    try {
+      const body = await api("titles", { method: "POST", body: JSON.stringify({ role: $("role").value.trim() }) });
+      titleMemo[key] = { suggested: body.titles, unticked: [], added: [] };
+      store.set("titles", titleMemo);
+    } catch (err) {
+      $("titles-status").textContent = err.message;
+      return;
+    }
+  }
+  if (key === roleKey()) renderTitles();
+}
+
+$("role").addEventListener("input", scheduleTitles);
+$("role").addEventListener("change", loadTitles);
+$("aliases").addEventListener("change", loadTitles);
+$("titles").addEventListener("change", (event) => {
+  const memo = titleMemo[roleKey()];
+  if (!memo || !event.target.value) return;
+  const t = event.target.value;
+  memo.unticked = memo.unticked.filter((x) => x !== t);
+  if (!event.target.checked) memo.unticked.push(t);
+  store.set("titles", titleMemo);
+  renderTitles();
+});
+function addTitle() {
+  const memo = titleMemo[roleKey()];
+  const t = $("title-add").value.trim();
+  if (!memo || !t) return;
+  if (![...memo.added, ...memo.suggested].some((x) => x.toLowerCase() === t.toLowerCase())) memo.added.push(t);
+  memo.unticked = memo.unticked.filter((x) => x.toLowerCase() !== t.toLowerCase());
+  $("title-add").value = "";
+  store.set("titles", titleMemo);
+  renderTitles();
+}
+$("title-add-btn").addEventListener("click", addTitle);
+$("title-add").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); addTitle(); } });
 
 // --- Make an employer list -------------------------------------------------
 
@@ -978,6 +1102,8 @@ $("list-use").addEventListener("click", async () => {
 // --- Start -----------------------------------------------------------------
 
 restoreForm();
+showStarredLimit();
+loadTitles();
 $("list-text").value = store.get("listDraft") || "";
 renderResume();
 renderEmployers();

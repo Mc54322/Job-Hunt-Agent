@@ -176,3 +176,28 @@ async def test_generate_filters_empty_strings(store: Store) -> None:
 
     assert "" not in aliases
     assert len(aliases) == 2
+
+
+# ---------------------------------------------------------------------------
+# Permanent, title-only caching and broader prompt (Nov 2026)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_title_is_looked_up_once_whatever_job_type_or_spacing(store: Store) -> None:
+    client = _make_client(_ALIASES_RESPONSE)
+    gen = AliasGenerator(client, LocalCacheClient(store))
+    first = await gen.generate("AI Engineer", "full-time")
+    again = await gen.generate("  ai   engineer ", "internship")
+    no_type = await AliasGenerator(client, LocalCacheClient(store)).generate("AI ENGINEER")
+    assert first == again == no_type
+    assert client.messages.create.await_count == 1  # type: ignore[attr-defined]
+
+
+@pytest.mark.asyncio
+async def test_prompt_asks_for_related_roles_not_just_synonyms(store: Store) -> None:
+    client = _make_client(_ALIASES_RESPONSE)
+    await AliasGenerator(client, LocalCacheClient(store)).generate("AI Engineer")
+    kwargs = client.messages.create.call_args.kwargs  # type: ignore[attr-defined]
+    assert "closely related roles" in kwargs["system"]
+    assert kwargs["messages"][0]["content"] == 'Job title: "AI Engineer"'

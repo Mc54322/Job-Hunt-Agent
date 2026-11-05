@@ -1,0 +1,60 @@
+JobAssist — find jobs that fit your CV
+========================================
+
+JobAssist searches job sites, employers' job boards and company websites for a job
+title you choose, then uses Claude to score every job against your CV and explain why
+it fits. It runs on your own computer; your CV and results stay on it.
+
+
+WHAT YOU NEED
+-------------
+- A Mac (macOS 12 or later) or a Windows 10/11 PC, with internet.
+- An Anthropic API key, from https://console.anthropic.com (add a few dollars of credit).
+  JobAssist shows an estimate before each search, and stops at a spending limit
+  ($5 per search, $2 for starred-only searches, at most $0.20 per employer).
+- Optional, free: Adzuna keys (https://developer.adzuna.com) and a Reed key
+  (https://www.reed.co.uk/developers) for many more job listings.
+
+
+START IT
+--------
+1. Unzip the download and keep everything in the JobAssist folder together.
+
+2. Windows: double-click  "JobAssist for Windows.exe"
+   Mac:     double-click  "JobAssist for Mac"
+
+   The first time, your computer may warn you because JobAssist isn't from an app store:
+   - Windows: on "Windows protected your PC", click "More info", then "Run anyway".
+   - Mac: if it says it can't be opened, right-click (or Control-click) "JobAssist for Mac",
+     choose "Open", then "Open" again. Or: System Settings > Privacy & Security >
+     "Open Anyway".
+
+3. The first time only, a window asks for your API keys and then spends a few
+   minutes installing what JobAssist needs (a small tool called uv, the app's
+   components, and a browser used to read company websites).
+
+4. Your web browser opens JobAssist at  http://localhost:8000
+   Keep the JobAssist window open while you use it. Close it to stop JobAssist.
+
+Next time it starts in a few seconds. If you double-click it while it's already
+running, it just opens the page again.
+
+
+USING IT
+--------
+- Add your CV (PDF, Word or text) — it's remembered.
+- Type a job title. Similar titles appear underneath; untick any you don't want.
+- Choose where to look: your Excel list of employers, or all job sites.
+  No list yet? Use "Make an employer list" at the bottom of the page — type one
+  company per line (see "Example employer list.txt") and download the spreadsheet.
+- Press "Find jobs". "Stop searching" moves straight on to scoring what was found.
+- Results are ranked by match; press "Why?" for the reasoning, or download them.
+
+
+WHERE THINGS ARE KEPT
+---------------------
+- Your API keys:        the .env file in this folder (keep it private; don't share it)
+- Saved results/scores: a "jobassist" folder in your home folder (.jobassist)
+- Logs, if something goes wrong: .jobassist/logs in your home folder
+
+To uninstall, delete this folder and the .jobassist folder in your home folder.

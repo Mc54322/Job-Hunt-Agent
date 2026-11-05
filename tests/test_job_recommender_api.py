@@ -336,3 +336,29 @@ async def test_scorer_reads_scores_saved_under_legacy_exact_text_key() -> None:
     llm = _mock_anthropic(_SCORE)
     scored = await ScoringPipeline(llm, resume, cache).cached_score(posting)
     assert scored is not None and scored.score == 0.8
+
+
+
+def test_titles_endpoint_returns_similar_titles_without_duplicates(client: TestClient) -> None:
+    with respx.mock:
+        route = respx.post("http://localhost:8001/aliases").mock(
+            return_value=httpx.Response(200, json={"aliases": [
+                "Machine Learning Engineer", "ai engineer", "Data Scientist",
+                "Data Scientist"]})
+        )
+        body = client.post("/titles", json={"role": "  AI   Engineer "}).json()
+    assert body == {"titles": ["Machine Learning Engineer", "Data Scientist"]}
+    assert json.loads(route.calls[0].request.content) == {"role": "AI Engineer"}
+
+
+def test_titles_endpoint_explains_missing_key(client: TestClient) -> None:
+    with respx.mock:
+        respx.post("http://localhost:8001/aliases").mock(
+            return_value=httpx.Response(503, json={"detail": "no key"})
+        )
+        resp = client.post("/titles", json={"role": "AI Engineer"})
+    assert resp.status_code == 503 and "API key" in resp.json()["detail"]
+
+
+def test_titles_endpoint_empty_title(client: TestClient) -> None:
+    assert client.post("/titles", json={"role": "   "}).json() == {"titles": []}

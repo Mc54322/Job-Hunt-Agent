@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
-from typing import Callable, Mapping
+from typing import Any, Callable, Coroutine, Mapping
 
 import anthropic
 import httpx
@@ -71,8 +71,14 @@ AGGREGATORS = {"adzuna", "reed"}
 # Adzuna's free tier allows ~25 calls/minute; one call per employer, spaced to stay under.
 EMPLOYER_SEARCH_DELAY = 3.0
 EMPLOYER_MAX_RESULTS = 20
+# Adzuna is searched per employer for the title plus its closest similar titles; more
+# would multiply calls against the free tier's daily allowance.
+ADZUNA_TITLES_PER_EMPLOYER = 3
 # Company websites are separate domains, so a few can be read at once.
 SITE_CONCURRENCY = 4
+# A website that takes longer than this (finding + reading it) is skipped: slow sites
+# rarely pay off, and waiting on them is what kept runs going after Stop.
+SITE_TIMEOUT_S = 60.0
 
 
 @dataclass
@@ -84,6 +90,14 @@ class SearchProgress:
     current: str = ""
     cancelled: bool = False  # the user pressed Stop
     meter: CostMeter | None = None
+    stop_event: asyncio.Event = field(default_factory=asyncio.Event)
+
+    def stop(self) -> None:
+        """The user's Stop: no new work, and unfinished work is cancelled."""
+        self.cancelled = True
+        if self.meter is not None:
+            self.meter.cancel()
+        self.stop_event.set()
 
     def tick(self, label: str) -> None:
         self.done += 1
@@ -101,6 +115,8 @@ class SearchSettings:
     company_sites: bool = False
     employer_delay: float = EMPLOYER_SEARCH_DELAY
     meter: CostMeter | None = None
+    deep_search: bool = False  # allow the expensive web-search fallback for careers pages
+    site_timeout: float = SITE_TIMEOUT_S
 
 
 async def collect(source: Source, queries: list[JobQuery]) -> list[JobPosting]:
@@ -137,12 +153,16 @@ class EmployerSearch:
         self._progress = progress or SearchProgress()
         self._notes = _Notes()
         self._meter = settings.meter
+        # Postings are recorded as each employer finishes, so Stop keeps what's done.
+        self._found: list[JobPosting] = []
+        self._searched: set[str] = set()  # employers with at least one finished source
         self._finder: CareersPageFinder | None = None
         self._sites: CompanySiteSearcher | None = None
         if settings.llm is not None:
             robots = RobotsChecker(http)
             self._finder = CareersPageFinder(
-                settings.llm, cache, http=http, robots=robots, meter=self._meter
+                settings.llm, cache, http=http, robots=robots, meter=self._meter,
+                web_search=settings.deep_search,
             )
             self._sites = CompanySiteSearcher(
                 http, PageExtractor(settings.llm, cache, meter=self._meter), robots
@@ -198,12 +218,13 @@ class EmployerSearch:
             + (len(unresolved) if do_sites else 0)
         )
 
-        jobs = [self._boards_in_turn(ats, slugs, q) for ats, slugs in boards.items()]
+        work = [self._boards_in_turn(ats, slugs, q) for ats, slugs in boards.items()]
         if self._settings.adzuna and unresolved:
-            jobs.append(self._adzuna_in_turn(unresolved, query))
+            work.append(self._adzuna_in_turn(unresolved, q))
         if do_sites and unresolved:
-            jobs.append(self._sites_concurrently(unresolved, q))
-        postings = [p for batch in await asyncio.gather(*jobs) for p in batch]
+            work.append(self._sites_concurrently(unresolved, q))
+        await self._run_until_done_or_stopped(work)
+        postings = list(self._found)
 
         if query.location:
             wanted = query.location
@@ -212,6 +233,25 @@ class EmployerSearch:
                 if p.source in AGGREGATORS or location_matches(p.location, wanted)
             ]
         return postings, self._statuses(query.companies, postings)
+
+    async def _run_until_done_or_stopped(
+        self, work: list[Coroutine[Any, Any, list[JobPosting]]]
+    ) -> None:
+        """Run *work* concurrently; on Stop, cancel whatever hasn't finished."""
+        tasks = [asyncio.create_task(w) for w in work]
+        stop = asyncio.create_task(self._progress.stop_event.wait())
+        try:
+            pending: set[asyncio.Task[Any]] = set(tasks)
+            while pending and not self._progress.stop_event.is_set():
+                _, pending = await asyncio.wait(
+                    pending | {stop}, return_when=asyncio.FIRST_COMPLETED
+                )
+                pending.discard(stop)
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+        finally:
+            stop.cancel()
 
     async def _board(self, company: str, board: Board, q: JobQuery) -> list[JobPosting]:
         fetcher = ATS_FETCHERS[board.ats](self._http, {company: board.slug})
@@ -229,7 +269,10 @@ class EmployerSearch:
         for company, slug in slugs.items():
             if self._skip_if_cancelled(company, company):
                 continue
-            postings.extend(await self._board(company, Board(ats, slug), q))
+            batch = await self._board(company, Board(ats, slug), q)
+            postings.extend(batch)
+            self._found.extend(batch)
+            self._searched.add(company)
             self._notes.add(company, f"searched their {ats.title()} jobs board")
             self._progress.tick(company)
         return postings
@@ -237,9 +280,7 @@ class EmployerSearch:
     async def _adzuna_in_turn(self, companies: list[str], query: JobQuery) -> list[JobPosting]:
         assert self._settings.adzuna is not None
         app_id, app_key = self._settings.adzuna
-        employer_query = query.model_copy(
-            update={"max_results": min(query.max_results, EMPLOYER_MAX_RESULTS)}
-        )
+        titles = query.role_terms()[:ADZUNA_TITLES_PER_EMPLOYER]
         postings: list[JobPosting] = []
         paced = False
         for company in companies:
@@ -249,17 +290,28 @@ class EmployerSearch:
                 self._http, app_id, app_key,
                 employer=adzuna_employer_name(company), employer_label=company,
             )
-            key = ["adzuna", company, query.role, query.location or ""]
+            for title in titles:
+                title_query = query.model_copy(update={
+                    "role": title,
+                    "max_results": min(query.max_results, EMPLOYER_MAX_RESULTS),
+                })
+                key = ["adzuna", company, title, query.location or ""]
 
-            async def fetch(f: AdzunaFetcher = fetcher) -> list[JobPosting]:
-                nonlocal paced
-                if paced:
-                    await asyncio.sleep(self._settings.employer_delay)
-                paced = True
-                return await collect(f, [employer_query])
+                async def fetch(
+                    f: AdzunaFetcher = fetcher, tq: JobQuery = title_query
+                ) -> list[JobPosting]:
+                    nonlocal paced
+                    if paced:
+                        await asyncio.sleep(self._settings.employer_delay)
+                    paced = True
+                    return await collect(f, [tq])
 
-            batch, _ = await self._results.get_or_fetch(key, fetch)
-            postings.extend(batch)
+                batch, _ = await self._results.get_or_fetch(key, fetch)
+                postings.extend(batch)
+                self._found.extend(batch)
+                if self._progress.cancelled:
+                    break
+            self._searched.add(company)
             self._progress.tick(company)
         return postings
 
@@ -272,8 +324,16 @@ class EmployerSearch:
                 if self._skip_if_cancelled(company, label):
                     return []
                 self._progress.current = label
+                timeout = self._settings.site_timeout
                 try:
-                    return await self._site(company, q)
+                    batch = await asyncio.wait_for(self._site(company, q), timeout=timeout)
+                    self._found.extend(batch)
+                    self._searched.add(company)
+                    return batch
+                except TimeoutError:
+                    self._notes.add(
+                        company, f"website skipped — took longer than {timeout:.0f} seconds"
+                    )
                 except BudgetStop:
                     self._notes.add(company, "website not searched — search stopped early")
                 except EmployerLimit as exc:
@@ -302,7 +362,8 @@ class EmployerSearch:
                 return await self._board(company, outcome.board, q)
             return outcome.postings
 
-        key = ["site", company, page.url_for(q.role), "|".join(q.role_terms()).lower()]
+        # v2: results saved before the Nov 2026 page-reading fix were wrongly empty.
+        key = ["site_v2", company, page.url_for(q.role), "|".join(q.role_terms()).lower()]
         postings, from_cache = await self._results.get_or_fetch(key, fetch)
         if from_cache:
             self._notes.add(company, "website: using results saved in the last 24 hours")
@@ -315,6 +376,10 @@ class EmployerSearch:
         for p in postings:
             counts = found.setdefault(p.company, {})
             counts[p.source] = counts.get(p.source, 0) + 1
+        if self._progress.cancelled:
+            for c in companies:
+                if c not in self._searched and c not in self._notes.by_company:
+                    self._notes.add(c, "not searched — stopped by you")
         return [
             CompanySearchStatus(
                 company=c,

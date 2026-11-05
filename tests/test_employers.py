@@ -380,3 +380,42 @@ def test_search_careers_url_pins_board(client: TestClient) -> None:
 )
 def test_location_uk_includes_uk_places_but_not_lookalikes(posting: str, expected: bool) -> None:
     assert location_matches(posting, "UK") is expected
+
+
+
+def test_search_uses_chosen_titles_without_lookup(client: TestClient) -> None:
+    llm = _mock_anthropic("[]")
+    app.dependency_overrides[get_anthropic] = lambda: llm
+    try:
+        with respx.mock:
+            respx.get("https://boards-api.greenhouse.io/v1/boards/monzo/jobs").mock(
+                return_value=httpx.Response(200, json={"jobs": [
+                    _greenhouse_job("AI Engineer", "London"),
+                    _greenhouse_job("Data Scientist", "London"),
+                    _greenhouse_job("Product Designer", "London"),
+                ]})
+            )
+            resp = client.post("/search", json={
+                "query": {"role": "AI Engineer", "job_type": "full-time",
+                          "companies": ["Monzo"], "role_aliases": ["Data Scientist"]},
+                "expand_aliases": True,
+            })
+    finally:
+        app.dependency_overrides.clear()
+    assert sorted(p["role"] for p in resp.json()["postings"]) == ["AI Engineer", "Data Scientist"]
+    assert llm.messages.create.await_count == 0  # type: ignore[attr-defined]
+
+
+def test_adzuna_employer_search_covers_top_similar_titles(client: TestClient) -> None:
+    with respx.mock:
+        adzuna = respx.get("https://api.adzuna.com/v1/api/jobs/gb/search/1").mock(
+            return_value=httpx.Response(200, json={"results": [
+                _adzuna_job("Barclays", "Data Scientist")]})
+        )
+        client.post("/search", json={
+            "query": {"role": "AI Engineer", "job_type": "full-time", "companies": ["Barclays"],
+                      "role_aliases": ["Data Scientist", "ML Engineer", "NLP Engineer"]},
+            "expand_aliases": False,
+        })
+    searched = [c.request.url.params["what"] for c in adzuna.calls]
+    assert searched == ["AI Engineer", "Data Scientist", "ML Engineer"]  # capped at 3

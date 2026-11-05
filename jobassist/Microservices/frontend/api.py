@@ -38,6 +38,7 @@ _ALLOWED = {
     ("POST", "report"),
     ("POST", "saved"),
     ("POST", "estimate"),
+    ("POST", "titles"),
 }
 # list_builder paths the page may call, under /api/lists/.
 _LIST_ALLOWED = {("GET", "template"), ("POST", "preview"), ("POST", "build")}

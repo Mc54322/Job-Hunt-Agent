@@ -18,7 +18,10 @@ A personal job aggregator that pulls postings from ATS boards and job aggregator
    Reed keys), then spends a few minutes installing what it needs.
 3. Your browser opens **http://localhost:8000**. Then:
    - **Your CV** — choose your CV (PDF, Word or text). It's remembered for next time.
-   - **What job** — job title, type, and where (e.g. `UK` or `London`).
+   - **What job** — job title, type, and where (e.g. `UK` or `London`). Under the title,
+     **Also search for** lists similar titles with overlapping skills (e.g. for "AI
+     Engineer": Machine Learning Engineer, Data Scientist, Applied Scientist…). Untick any,
+     or add your own. Each title is looked up once (about $0.002) and saved permanently.
    - **Where to look** — your Excel employer list (tick "Only my starred employers" or pick
      groups), or all job sites. Leave **"Also search each company's own website"** on to
      have JobAssist visit each employer's careers site too.
@@ -64,18 +67,50 @@ days (so the web search to find it isn't repeated); put a link in your sheet's
 
 **Cost and spending limits.** Claude is used to find careers pages, read company
 websites and score jobs against your CV. Before you start, the page shows an estimate
-next to **Find jobs**. Every search has a **spending limit ($5 by default)** and a
-**limit per employer website ($0.50)** — both under **More options**. When a limit is
-reached, or your Anthropic credit runs out, JobAssist stops using Claude, keeps and shows
-everything found so far, and says why; an employer whose website would cost more than
-its limit is skipped and flagged. **Stop search** on the progress bar stops at any time.
-The results show what the search cost, and "What was searched at each employer" shows the
-cost per employer. Costs are JobAssist's estimates from published prices — your Anthropic
-console is the official record.
+next to **Find jobs**. Limits (under **More options**):
 
-To keep costs down, JobAssist asks Claude for each careers page from memory and checks it
-with a free fetch (web search only if that fails), skips any website that never mentions
+- **Per search:** $5 by default, **$2 when searching only your starred employers**.
+- **Per employer: a hard cap of $0.20.** An employer whose website would cost more is
+  skipped and flagged.
+- **Per website: 60 seconds.** A slow site is skipped rather than waited on.
+
+When a limit is reached, or your Anthropic credit runs out, JobAssist stops using Claude,
+keeps everything found and says why. **Stop** on the progress bar ends the search at once
+and goes straight to scoring the jobs found so far; pressing it again during scoring stops
+the scoring. Jobs that weren't scored are still listed ("Not scored"). The results show
+what the search cost, and "What was searched at each employer" shows cost per employer.
+Costs are JobAssist's estimates from published prices — your Anthropic console is the
+official record.
+
+To keep costs down, JobAssist asks Claude for each careers page from memory, checks it
+with a free fetch and otherwise follows the "Careers" link on the company's homepage. Web
+search is **off** by default ("Deep search" in More options): in testing it cost
+$0.10–$0.80 per employer and rarely found more, so it only runs if you raise the
+per-employer cap to at least $0.40. JobAssist also skips any website that never mentions
 your job title, and only asks Claude for the matching jobs on a page.
+
+## Sharing JobAssist with others
+
+Build a download anyone can use (run on a Mac):
+
+```bash
+bash packaging/build.sh
+```
+
+This makes `dist/JobAssist.zip` (about 8 MB). Inside the folder:
+
+- **JobAssist for Windows.exe** and **JobAssist for Mac** — double-click the one for your
+  computer. The first run installs what's needed (uv, the app's components, the browser
+  for company websites) and asks for the person's own Anthropic key (and optional
+  Adzuna/Reed keys), saved to `.env` in that folder. Later runs start in seconds.
+- **READ ME FIRST.txt** — plain-English setup and use, including getting past the
+  "unknown developer" warning (the programs aren't code-signed).
+- **Example employer list.txt**, the app's source, and this README.
+
+Personal files are never included: the folder is built from an explicit list and the
+build refuses to finish if it finds a `.env`, CV, spreadsheet, database or API key.
+Go is downloaded into `packaging/.toolchain/` (checksum-verified) the first time, so
+nothing needs installing. The launcher source is in `packaging/launcher/`.
 
 ## Requirements
 
@@ -172,7 +207,8 @@ uv run --env-file .env jobassist search "Graduate Engineer" full-time \
 | `--db` | `~/.jobassist/data.db` | SQLite store path |
 | `--company-sites` | off | Also search each named company's own careers website |
 | `--refresh` | off | Ignore results saved in the last 24 hours and search again |
-| `--budget` | 5.0 | Claude spending limit for this search, in US dollars |
+| `--budget` | 5.0 (2.0 with `--starred`) | Claude spending limit for this search, in US dollars |
+| `--deep-search` | off | Use web search for careers pages Claude can't find (needs a per-employer limit ≥ $0.40) |
 
 ## Sources
 
@@ -217,7 +253,7 @@ in the UK; `London` keeps London only).
 ## Development
 
 ```bash
-uv run pytest                    # run all 457 tests
+uv run pytest                    # run all 479 tests
 uv run pytest --tb=short -q      # quiet mode
 uv run ruff check .              # lint
 uv run mypy jobassist/           # type-check (strict)

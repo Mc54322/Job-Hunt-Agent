@@ -1,4 +1,10 @@
-"""Role alias generator — expands a role title into equivalent search terms."""
+"""Similar-title generator — expands a job title into titles worth searching too.
+
+Includes close roles with overlapping skills, not just synonyms (e.g. "AI Engineer" also
+brings "Data Scientist", "Machine Learning Engineer"): scoring against the CV decides
+what actually fits. Generated once per title and kept permanently in the cache, so a
+title is never looked up twice (one small call, ~$0.002).
+"""
 
 from __future__ import annotations
 
@@ -13,8 +19,13 @@ from jobassist.Microservices.web_scraper.costs.meter import CostMeter, metered_c
 _MODEL = "claude-sonnet-4-6"
 
 _SYSTEM_PROMPT = """\
-You generate alternative job title search terms. Given a role title and employment type, \
-return 5–8 alternative titles that a recruiter might use for the same or equivalent position.
+You help a UK job seeker widen a job search. Given a job title, return 6–10 other job \
+titles worth searching too, most relevant first:
+- other names employers use for the same job, and
+- closely related roles that need largely the same skills (for example, for \
+"AI Engineer": "Machine Learning Engineer", "Data Scientist", "Applied Scientist").
+Do not include roles that need a different skill set, and keep the same broad level \
+(no "Head of" or "Director" titles for a junior or mid-level title).
 
 Return a JSON array of strings (no markdown fences, no explanation).
 Include only titles — no descriptions, no bullet points.
@@ -39,13 +50,13 @@ class AliasGenerator:
         self._cache = cache
         self._meter = meter
 
-    async def generate(self, role: str, job_type: str) -> list[str]:
-        """Return a list of alternative role titles for *role* + *job_type*.
+    async def generate(self, role: str, job_type: str | None = None) -> list[str]:
+        """Return similar job titles for *role*, most relevant first.
 
-        Results are cached by `(role, job_type)` so the LLM is only called once
-        per unique combination.
+        Cached permanently by the title alone (any job type, any casing or spacing), so
+        Claude is only asked once per title. *job_type* is accepted for compatibility.
         """
-        key = cache_key("aliases_v1", role.lower(), job_type.lower())
+        key = cache_key("aliases_v2", " ".join(role.lower().split()))
         cached = await self._cache.get_cached(key)
         if cached is not None:
             return self._parse(cached)
@@ -59,7 +70,7 @@ class AliasGenerator:
             max_tokens=256,
             system=_SYSTEM_PROMPT,
             messages=[
-                {"role": "user", "content": f'Role: "{role}"\nEmployment type: {job_type}'}
+                {"role": "user", "content": f'Job title: "{role}"'}
             ],
         )
 

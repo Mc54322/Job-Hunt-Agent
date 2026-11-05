@@ -63,20 +63,51 @@ if [ ! -f "$BROWSER_MARKER" ]; then
 fi
 
 # --- 4. Start the services ---------------------------------------------------
-pkill -f "uvicorn jobassist.Microservices" 2>/dev/null && sleep 1  # an older JobAssist window
+# Already running in another window? Just open it — never stop another window's JobAssist.
+if curl -sf "http://localhost:8000/health" >/dev/null 2>&1; then
+  open "$APP_URL"
+  say "JobAssist is already running in another window, so it has been opened in your browser."
+  say "You can close this window — the other one keeps JobAssist running."
+  exit 0
+fi
+# Leftovers from a JobAssist that didn't shut down cleanly would block the ports.
+if pgrep -f "uvicorn jobassist.Microservices" >/dev/null 2>&1; then
+  say "Clearing up a previous JobAssist that didn't close properly…"
+  pkill -f "uvicorn jobassist.Microservices" 2>/dev/null
+  sleep 3
+  pkill -9 -f "uvicorn jobassist.Microservices" 2>/dev/null
+  sleep 1
+fi
 
 PIDS=()
+NAMES=()
 start_service() {
   uv run --env-file .env uvicorn "jobassist.Microservices.$1.api:app" \
     --host 127.0.0.1 --port "$2" --timeout-graceful-shutdown 3 >"$LOG_DIR/$1.log" 2>&1 &
   PIDS+=($!)
+  NAMES+=("$1")
+}
+# This window's services only: each 'uv run' and the server process it started.
+own_processes() {
+  for pid in "${PIDS[@]}"; do
+    echo "$pid"
+    pgrep -P "$pid" 2>/dev/null
+  done
 }
 stop_services() {
   trap - EXIT INT TERM HUP
   say "Stopping JobAssist…"
-  kill "${PIDS[@]}" 2>/dev/null
-  sleep 2
-  pkill -9 -f "uvicorn jobassist.Microservices" 2>/dev/null
+  procs=$(own_processes)
+  if [ -n "$procs" ]; then
+    kill $procs 2>/dev/null
+    for _ in 1 2 3 4 5; do
+      kill -0 $procs 2>/dev/null || break
+      sleep 1
+    done
+    kill -9 $procs 2>/dev/null
+  fi
+  wait 2>/dev/null
+  say "JobAssist has stopped."
   exit 0
 }
 trap stop_services EXIT INT TERM HUP
@@ -103,4 +134,15 @@ done
 open "$APP_URL"
 say "JobAssist is running at $APP_URL (it should have opened in your browser)."
 say "Keep this window open while you use it. To stop JobAssist, close this window or press Ctrl+C."
-wait
+
+# Watch the services; if one stops on its own, say which and shut the rest down cleanly.
+while :; do
+  for i in "${!PIDS[@]}"; do
+    if ! kill -0 "${PIDS[$i]}" 2>/dev/null; then
+      say "The ${NAMES[$i]} part of JobAssist stopped unexpectedly. Details: $LOG_DIR/${NAMES[$i]}.log"
+      say "Start JobAssist again to carry on."
+      exit 1
+    fi
+  done
+  sleep 2
+done

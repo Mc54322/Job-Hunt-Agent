@@ -34,6 +34,15 @@ _WEB_SCRAPER_URL = os.environ.get("WEB_SCRAPER_URL", "http://localhost:8001")
 _RECOMMEND_TIMEOUT = 3600.0
 
 
+# Searching only starred employers is capped lower by default.
+_DEFAULT_BUDGET_USD = 5.0
+_STARRED_BUDGET_USD = 2.0
+
+
+def _default_budget(starred: bool) -> float:
+    return _STARRED_BUDGET_USD if starred else _DEFAULT_BUDGET_USD
+
+
 @app.callback()
 def _callback() -> None:
     """JobAssist — personal job search, deduplication, and LLM scoring."""
@@ -132,8 +141,16 @@ def search(
     refresh: bool = typer.Option(
         False, "--refresh", help="Ignore results saved in the last 24 hours; search again."
     ),
-    budget: float = typer.Option(
-        5.0, "--budget", help="Claude spending limit for this search, in US dollars."
+    deep_search: bool = typer.Option(
+        False,
+        "--deep-search",
+        help="Use web search for careers pages Claude can't find ($0.10–$0.80 each). "
+        "Needs a per-employer limit of at least $0.40.",
+    ),
+    budget: Optional[float] = typer.Option(
+        None,
+        "--budget",
+        help="Claude spending limit in US dollars (default $5, or $2 with --starred).",
     ),
     one_per_company: bool = typer.Option(
         True,
@@ -196,7 +213,8 @@ def search(
                 "expand_aliases": aliases,
                 "refresh": refresh,
                 "search_company_sites": company_sites,
-                "budget_usd": budget,
+                "deep_search": deep_search,
+                "budget_usd": budget if budget is not None else _default_budget(starred),
             },
             timeout=_RECOMMEND_TIMEOUT,
         )

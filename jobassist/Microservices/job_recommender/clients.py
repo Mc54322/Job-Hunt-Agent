@@ -64,6 +64,7 @@ class WebScraperClient:
         run_id: str | None = None,
         budget_usd: float | None = None,
         company_budget_usd: float | None = None,
+        deep_search: bool = False,
     ) -> SearchResult:
         resp = await self._http.post(
             f"{self._base}/search",
@@ -75,6 +76,7 @@ class WebScraperClient:
                 "run_id": run_id,
                 "budget_usd": budget_usd,
                 "company_budget_usd": company_budget_usd,
+                "deep_search": deep_search,
             },
             # Employer lists pace Adzuna at ~3s per employer and read company websites.
             timeout=_SEARCH_TIMEOUT,
@@ -103,6 +105,15 @@ class WebScraperClient:
             current=body["current"],
             spent_usd=float(body.get("spent_usd", 0.0)),
         )
+
+    async def similar_titles(self, role: str) -> list[str]:
+        """Similar job titles for *role* (looked up once, then saved permanently)."""
+        resp = await self._http.post(
+            f"{self._base}/aliases", json={"role": role}, timeout=60.0
+        )
+        resp.raise_for_status()
+        titles: list[str] = resp.json()["aliases"]
+        return titles
 
     async def stop(self, run_id: str) -> None:
         """Ask the search for *run_id* to stop (best effort)."""

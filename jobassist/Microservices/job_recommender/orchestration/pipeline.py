@@ -33,7 +33,8 @@ from jobassist.Microservices.job_recommender.scoring.scorer import ScoringPipeli
 
 SCORING_CONCURRENCY = 5
 DEFAULT_BUDGET_USD = 5.0
-DEFAULT_COMPANY_BUDGET_USD = 0.50
+# Hard cap per employer: one employer's website rarely justifies more.
+DEFAULT_COMPANY_BUDGET_USD = 0.20
 
 
 @dataclass
@@ -48,6 +49,7 @@ class PipelineOptions:
     search_company_sites: bool = False
     budget_usd: float | None = DEFAULT_BUDGET_USD
     company_budget_usd: float | None = DEFAULT_COMPANY_BUDGET_USD
+    deep_search: bool = False  # web-search fallback for careers pages (expensive)
 
 
 @dataclass
@@ -72,6 +74,7 @@ class RunState:
     stop_requested: bool = False
     scoring_meter: CostMeter | None = None
     unscored: int = 0  # found but not scored (limit, stop, or failed calls)
+    unscored_postings: list[JobPosting] = field(default_factory=list)
 
 
 def friendly_error(exc: BaseException) -> str:
@@ -117,6 +120,7 @@ async def run_pipeline(
         run_id=state.id,
         budget_usd=options.budget_usd,
         company_budget_usd=options.company_budget_usd,
+        deep_search=options.deep_search,
     )
     state.companies = found.companies
     state.spent_usd = found.spent_usd
@@ -137,11 +141,17 @@ async def run_pipeline(
         max(0.0, options.budget_usd - found.spent_usd) if options.budget_usd is not None else None
     )
     meter = CostMeter(remaining)
-    state.scoring_meter = meter
-    if state.stop_requested:
-        meter.cancel()
+    # Stop pressed while searching ends the search only: the jobs found are still scored.
+    # (Stop pressed again now, during scoring, cancels this meter via the stop endpoint.)
+    stopped_while_searching = state.stop_requested
+    state.stop_requested = False
+    if stopped_while_searching:
+        state.stop_reason = (
+            f"Search stopped by you — scored the {len(unique)} jobs found so far."
+        )
     elif found.stopped and "credit" in found.stopped.lower():
         meter.cancel(found.stopped)
+    state.scoring_meter = meter
 
     state.phase = "scoring"
     state.total = len(unique)
@@ -155,19 +165,24 @@ async def run_pipeline(
                 return await pipeline.score(posting)
             except (BudgetStop, CallFailed, ValueError):
                 return None  # limit/stop/credit (reason on the meter) or a bad reply
+            except Exception:  # noqa: BLE001 - one job's failure must not lose the run
+                return None
             finally:
                 state.done += 1
                 state.spent_usd = found.spent_usd + meter.spent_usd
 
     outcomes = await asyncio.gather(*(_score(p) for p in unique))
     scored = [s for s in outcomes if s is not None]
-    state.unscored = len(unique) - len(scored)
+    state.unscored_postings = [p for p, s in zip(unique, outcomes) if s is None]
+    state.unscored = len(state.unscored_postings)
     state.spent_usd = round(found.spent_usd + meter.spent_usd, 4)
     state.costs = sorted(state.costs + meter.lines(), key=lambda c: -c.usd)
-    if meter.stopped and not state.stop_reason:
+    if state.stop_requested:
+        state.stop_reason = (
+            f"Scoring stopped by you — {state.unscored} jobs were left unscored."
+        )
+    elif meter.stopped and not state.stop_reason:
         state.stop_reason = meter.stopped
-    if state.stop_requested and not state.stop_reason:
-        state.stop_reason = "Stopped by you."
     if options.one_per_company:
         scored = top_per_company(scored)
 

@@ -30,6 +30,10 @@ class JobQuery(BaseModel):
     company_urls: dict[str, str] = Field(
         default_factory=dict, description="Optional careers-page URL per company"
     )
+    role_aliases: list[str] = Field(
+        default_factory=list,
+        description="Similar titles to search too (chosen by the user); empty = look them up",
+    )
 
 
 class JobPosting(BaseModel):

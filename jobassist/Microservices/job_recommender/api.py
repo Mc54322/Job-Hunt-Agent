@@ -108,6 +108,7 @@ class RecommendRequest(BaseModel):
     search_company_sites: bool = False  # also search each named company's website
     budget_usd: float | None = DEFAULT_BUDGET_USD  # Claude spend limit for the run
     company_budget_usd: float | None = DEFAULT_COMPANY_BUDGET_USD  # per-employer limit
+    deep_search: bool = False  # web-search fallback for careers pages (expensive)
 
 
 class RecommendResponse(BaseModel):
@@ -139,12 +140,16 @@ class RunStatus(BaseModel):
     costs: list[CostLine]
     stop_reason: str | None
     unscored: int
+    unscored_postings: list[JobPosting]
 
 
 class EstimateRequest(BaseModel):
     query: JobQuery
     search_company_sites: bool = False
     expand_aliases: bool = True
+    deep_search: bool = False
+    budget_usd: float | None = None
+    company_budget_usd: float | None = DEFAULT_COMPANY_BUDGET_USD
 
 
 class EstimateResponse(BaseModel):
@@ -154,6 +159,14 @@ class EstimateResponse(BaseModel):
     adzuna: int
     websites: int
     careers_pages_to_find: int
+
+
+class TitlesRequest(BaseModel):
+    role: str
+
+
+class TitlesResponse(BaseModel):
+    titles: list[str]
 
 
 class SavedRequest(BaseModel):
@@ -279,6 +292,7 @@ def _options(req: RecommendRequest) -> PipelineOptions:
         search_company_sites=req.search_company_sites,
         budget_usd=req.budget_usd,
         company_budget_usd=req.company_budget_usd,
+        deep_search=req.deep_search,
     )
 
 
@@ -353,7 +367,7 @@ async def run_status(run_id: str, request: Request) -> RunStatus:
         if progress is not None:
             state.done, state.total = progress.done, progress.total
             state.spent_usd = progress.spent_usd
-            if progress.current:
+            if progress.current and not state.stop_requested:
                 state.message = f"Searching — last checked: {progress.current}"
     return RunStatus(
         run_id=state.id,
@@ -372,6 +386,7 @@ async def run_status(run_id: str, request: Request) -> RunStatus:
         costs=state.costs,
         stop_reason=state.stop_reason,
         unscored=state.unscored,
+        unscored_postings=state.unscored_postings,
     )
 
 
@@ -383,18 +398,25 @@ async def stop_run(run_id: str, request: Request) -> RunStatus:
         raise HTTPException(status_code=404, detail="unknown run")
     if state.state == "running":
         state.stop_requested = True
-        state.message = "Stopping…"
         if state.scoring_meter is not None:
+            # Already scoring: stop scoring and show what's scored.
+            state.message = "Stopping scoring…"
             state.scoring_meter.cancel()
-        web_scraper, _ = _services(request)
-        await web_scraper.stop(run_id)
+        else:
+            # Still searching: end the search; the pipeline then scores what was found.
+            state.message = "Stopping the search — scoring the jobs found so far…"
+            web_scraper, _ = _services(request)
+            await web_scraper.stop(run_id)
     return await run_status(run_id, request)
 
 
-# Rough per-step costs (claude-sonnet-4-6) for the pre-run estimate.
-_FIND_PAGE_USD = (0.005, 0.04)  # from memory + check; web-search fallback is the high end
-_READ_SITE_USD = (0.0, 0.03)  # free when the page doesn't mention the role
-_SCORE_USD = (0.006, 0.015)
+# Mirrors web_scraper's reserve for one web-search call (services don't share code).
+WEB_SEARCH_RESERVE_USD = 0.40
+# Per-step costs (claude-sonnet-4-6) measured on real runs, for the pre-run estimate.
+_FIND_PAGE_USD = (0.0015, 0.003)  # from memory + free checks
+_WEB_SEARCH_USD = (0.11, 0.76)  # deep search fallback — measured Nov 2026
+_READ_SITE_USD = (0.0, 0.05)  # free when the page doesn't mention the role
+_SCORE_USD = (0.004, 0.012)
 _TITLES_USD = 0.002
 
 
@@ -405,14 +427,24 @@ async def estimate(req: EstimateRequest, request: Request) -> EstimateResponse:
     plan = await web_scraper.plan(req.query, search_company_sites=req.search_company_sites)
     jobs = req.query.max_results
     titles = _TITLES_USD if req.expand_aliases else 0.0
+    per_employer_cap = req.company_budget_usd if req.company_budget_usd is not None else 1e9
+    # Deep search only runs where the per-employer limit leaves room for its reserve.
+    deep_high = (
+        min(_WEB_SEARCH_USD[1], per_employer_cap)
+        if req.deep_search and per_employer_cap >= WEB_SEARCH_RESERVE_USD
+        else 0.0
+    )
     low = (
         titles + plan.careers_pages_to_find * _FIND_PAGE_USD[0]
         + plan.websites * _READ_SITE_USD[0] + jobs * _SCORE_USD[0] * 0.5
     )
     high = (
-        titles + plan.careers_pages_to_find * _FIND_PAGE_USD[1]
-        + plan.websites * _READ_SITE_USD[1] + jobs * _SCORE_USD[1]
+        titles + plan.careers_pages_to_find * (_FIND_PAGE_USD[1] + deep_high)
+        + plan.websites * min(_READ_SITE_USD[1], per_employer_cap) + jobs * _SCORE_USD[1]
     )
+    if req.budget_usd is not None:
+        high = min(high, req.budget_usd)
+        low = min(low, high)
     return EstimateResponse(
         low_usd=round(low, 2),
         high_usd=round(high, 2),
@@ -421,6 +453,31 @@ async def estimate(req: EstimateRequest, request: Request) -> EstimateResponse:
         websites=plan.websites,
         careers_pages_to_find=plan.careers_pages_to_find,
     )
+
+
+@app.post("/titles", response_model=TitlesResponse)
+async def similar_titles(req: TitlesRequest, request: Request) -> TitlesResponse:
+    """Similar job titles to search too. Claude is asked once per title, ever."""
+    role = " ".join(req.role.split())
+    if not role:
+        return TitlesResponse(titles=[])
+    web_scraper, _ = _services(request)
+    try:
+        titles = await web_scraper.similar_titles(role)
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 503:
+            raise HTTPException(
+                status_code=503,
+                detail="Similar titles need the Anthropic API key in the .env file.",
+            ) from exc
+        raise
+    seen = {role.lower()}
+    unique: list[str] = []
+    for title in titles:
+        if title.lower() not in seen:
+            seen.add(title.lower())
+            unique.append(title)
+    return TitlesResponse(titles=unique)
 
 
 @app.post("/saved", response_model=SavedResponse)

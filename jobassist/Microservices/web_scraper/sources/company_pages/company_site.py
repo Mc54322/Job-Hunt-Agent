@@ -35,7 +35,8 @@ _MAX_LINKS = 400
 # Below these a page is treated as a JavaScript shell and rendered in a browser.
 _MIN_TEXT_CHARS = 400
 _MIN_LINKS = 8
-_RENDER_SETTLE_MS = 4_000
+_RENDER_IDLE_MS = 10_000
+_RENDER_SETTLE_MS = 1_500
 # Cost control: long pages are cut down to the lines around a matching title.
 _FOCUS_THRESHOLD = 6_000
 _HEAD_CHARS = 1_500
@@ -99,6 +100,27 @@ def read_page(html: str, base_url: str) -> PageContent:
     return PageContent(text=text[:_MAX_TEXT_CHARS], links=links)
 
 
+def _words(text: str) -> list[str]:
+    return re.findall(r"[a-z0-9]+", text.lower())
+
+
+def mentions_role(text: str, terms: list[str]) -> bool:
+    """True when *text* mentions any term, ignoring word order and punctuation.
+
+    "Data Analyst" matches "Analyst, Data & Insights"; "AI Engineer" matches
+    "Engineer – AI Platform". Each line is checked on its own so words from unrelated
+    places on a page don't combine into a false match.
+    """
+    wanted = [set(_words(t)) for t in terms if _words(t)]
+    if not wanted:
+        return False
+    for line in text.splitlines():
+        words = set(_words(line))
+        if any(term <= words for term in wanted):
+            return True
+    return False
+
+
 def focus_for_roles(content: PageContent, terms: list[str]) -> str | None:
     """The parts of *content* worth sending to Claude for *terms*, or None if none match.
 
@@ -106,11 +128,8 @@ def focus_for_roles(content: PageContent, terms: list[str]) -> str | None:
     costs nothing. Long pages keep their opening plus the lines around each mention;
     links keep those whose text matches a term, then other job-looking links.
     """
-    wanted = [t.lower() for t in terms if t.strip()]
-
     def mentions(text: str) -> bool:
-        lowered = text.lower()
-        return any(term in lowered for term in wanted)
+        return mentions_role(text, terms)
 
     title_links = {url: label for url, label in content.links.items() if mentions(label)}
     if not title_links and not mentions(content.text):
@@ -138,8 +157,7 @@ def focus_for_roles(content: PageContent, terms: list[str]) -> str | None:
 
 
 def _title_matches(title: str, terms: list[str]) -> bool:
-    lowered = title.lower()
-    return any(term.lower() in lowered for term in terms)
+    return mentions_role(title, terms)
 
 
 class CompanySiteSearcher:
@@ -175,7 +193,11 @@ class CompanySiteSearcher:
             return SiteSearchOutcome(board=board, page_url=url, note="site uses a jobs board")
 
         content = read_page(html, final_url) if html else PageContent("", {})
-        if content.is_thin() and self._use_browser:
+        terms = query.role_terms()
+        # Render when the plain page is empty OR doesn't mention the role yet: many
+        # careers pages have plenty of text of their own and load the job list by script.
+        needs_browser = content.is_thin() or focus_for_roles(content, terms) is None
+        if needs_browser and self._use_browser:
             rendered = await self._render(url)
             if rendered:
                 board = board_from_url(rendered)
@@ -184,12 +206,13 @@ class CompanySiteSearcher:
                         board=board, page_url=url, note="site uses a jobs board"
                     )
                 rendered_content = read_page(rendered, final_url)
-                if len(rendered_content.text) > len(content.text):
+                if len(rendered_content.text) >= len(content.text) or (
+                    focus_for_roles(rendered_content, terms) is not None
+                ):
                     content = rendered_content
         if not content.text:
             return SiteSearchOutcome(page_url=url, note="website could not be read")
 
-        terms = query.role_terms()
         focused = focus_for_roles(content, terms)
         if focused is None:
             return SiteSearchOutcome(
@@ -227,6 +250,11 @@ class CompanySiteSearcher:
                 try:
                     tab = await browser.new_page(user_agent=_USER_AGENT)
                     await tab.goto(url, wait_until="domcontentloaded", timeout=30_000)
+                    # Wait for the job list to arrive (network quiet), but never long.
+                    try:
+                        await tab.wait_for_load_state("networkidle", timeout=_RENDER_IDLE_MS)
+                    except Exception:  # noqa: BLE001 - busy sites never go idle; read anyway
+                        pass
                     await tab.wait_for_timeout(_RENDER_SETTLE_MS)
                     html: Any = await tab.content()
                     return str(html)

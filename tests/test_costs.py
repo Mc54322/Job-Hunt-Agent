@@ -374,7 +374,8 @@ def test_run_passes_limits_and_reports_costs(recommender: TestClient) -> None:
         search = _mock_services({"postings": [_POSTING], "spent_usd": 0.02, "costs": [cost]})
         body = _wait(recommender, _start(recommender))
     sent = json.loads(search.calls[0].request.content)
-    assert sent["budget_usd"] == 5.0 and sent["company_budget_usd"] == 0.5
+    assert sent["budget_usd"] == 5.0 and sent["company_budget_usd"] == 0.2
+    assert sent["deep_search"] is False
     assert body["state"] == "done" and body["budget_usd"] == 5.0
     assert body["spent_usd"] == pytest.approx(0.02 + 0.0045)
     assert {c["step"] for c in body["costs"]} == {"reading website", "scoring"}
@@ -408,21 +409,37 @@ def test_out_of_credit_during_scoring_is_a_clean_finish(recommender: TestClient)
     assert body["unscored"] == 1
 
 
-def test_stop_endpoint_marks_run(recommender: TestClient) -> None:
+def test_stop_endpoint_during_scoring_stops_scoring_only(recommender: TestClient) -> None:
     from jobassist.Microservices.job_recommender import api as recommender_api
     from jobassist.Microservices.job_recommender.costs.meter import CostMeter as ScoringMeter
     from jobassist.Microservices.job_recommender.orchestration.pipeline import RunState
 
     state = RunState(phase="scoring", scoring_meter=ScoringMeter())
     recommender_api._RUNS[state.id] = state
+    with respx.mock:  # no search-service call is mocked: none may be made
+        body = recommender.post(f"/runs/{state.id}/stop").json()
+    assert state.stop_requested and body["message"] == "Stopping scoring…"
+    assert state.scoring_meter is not None and state.scoring_meter.stopped == "Stopped by you."
+
+
+def test_stop_endpoint_during_search_ends_search(recommender: TestClient) -> None:
+    from jobassist.Microservices.job_recommender import api as recommender_api
+    from jobassist.Microservices.job_recommender.orchestration.pipeline import RunState
+
+    state = RunState(phase="searching")
+    recommender_api._RUNS[state.id] = state
     with respx.mock:
         stop = respx.post(f"http://localhost:8001/search/stop/{state.id}").mock(
             return_value=httpx.Response(200, json={"ok": True})
         )
-        body = recommender.post(f"/runs/{state.id}/stop").json()
-    assert state.stop_requested and stop.call_count == 1
-    assert body["message"] == "Stopping…"
-    assert state.scoring_meter is not None and state.scoring_meter.stopped == "Stopped by you."
+        respx.get(f"http://localhost:8001/search/progress/{state.id}").mock(
+            return_value=httpx.Response(200, json={"total": 1, "done": 0, "current": "ONS",
+                                                   "spent_usd": 0.0})
+        )
+        recommender.post(f"/runs/{state.id}/stop")
+        recommender.get(f"/runs/{state.id}")  # a later poll must not hide the stop
+    assert stop.call_count == 1 and state.stop_requested
+    assert "scoring the jobs found so far" in state.message
 
 
 def test_estimate_uses_plan(recommender: TestClient) -> None:
@@ -437,3 +454,160 @@ def test_estimate_uses_plan(recommender: TestClient) -> None:
         }).json()
     assert 0 < body["low_usd"] < body["high_usd"] < 5
     assert body["websites"] == 5
+
+
+
+# ---------------------------------------------------------------------------
+# Hard caps, time limits and Stop (Nov 2026 fixes)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_per_employer_cap_blocks_web_search_before_it_runs() -> None:
+    from jobassist.Microservices.web_scraper.sources.company_pages.discovery import (
+        CareersPageFinder,
+    )
+
+    meter = CostMeter(budget_usd=5.0, company_budget_usd=0.20)
+    llm = _llm(_reply('{"found": false}', _usage(500, 50)))
+    finder = CareersPageFinder(llm, MemoryCache(), meter=meter, web_search=True)
+    with pytest.raises(EmployerLimit, match=r"\$0.20 limit"):
+        await finder.find("Expensive University")
+    assert llm.messages.create.await_count == 1  # the guess ran; the web search never did
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_slow_website_is_skipped_after_time_limit() -> None:
+    import asyncio
+
+    _routes()
+    query = JobQuery(role="Data Analyst", job_type="full-time", companies=["Acme"],
+                     company_urls={"Acme": "https://acme.example/careers"})
+
+    async def slow(*args: Any, **kwargs: Any) -> Any:
+        await asyncio.sleep(5)
+        return _reply("{}")
+
+    llm = MagicMock(spec=anthropic.AsyncAnthropic)
+    llm.messages = MagicMock()
+    llm.messages.create = slow
+    async with httpx.AsyncClient() as client:
+        settings = SearchSettings(llm=llm, company_sites=True, meter=CostMeter(),  # type: ignore[arg-type]
+                                  site_timeout=0.2)
+        postings, statuses = await EmployerSearch(client, MemoryCache(), settings).search_companies(
+            query, [query.role]
+        )
+    assert postings == []
+    assert "took longer than 0 seconds" in statuses[0].notes[0]
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_stop_cancels_work_in_progress_and_keeps_finished_results() -> None:
+    import asyncio
+
+    _routes()
+    started = asyncio.Event()
+
+    async def hang(*args: Any, **kwargs: Any) -> Any:
+        started.set()
+        await asyncio.sleep(60)
+        return _reply("{}")
+
+    llm = MagicMock(spec=anthropic.AsyncAnthropic)
+    llm.messages = MagicMock()
+    llm.messages.create = hang
+    progress = SearchProgress(meter=CostMeter())
+    async with httpx.AsyncClient() as client:
+        settings = SearchSettings(llm=llm, company_sites=True, meter=progress.meter)  # type: ignore[arg-type]
+        search = EmployerSearch(client, MemoryCache(), settings, progress)
+        task = asyncio.create_task(search.search_companies(_QUERY, [_QUERY.role]))
+        await asyncio.wait_for(started.wait(), 5)
+        await asyncio.sleep(1.5)  # let the free job-board fetch finish its politeness pause
+        progress.stop()
+        postings, statuses = await asyncio.wait_for(task, 5)  # returns promptly, not in 60s
+    assert [p.company for p in postings] == ["Monzo"]  # finished board result kept
+    acme = next(s for s in statuses if s.company == "Acme")
+    assert "stopped by you" in " ".join(acme.notes)
+    monzo = next(s for s in statuses if s.company == "Monzo")
+    assert "stopped by you" not in " ".join(monzo.notes)  # it was searched
+
+
+def test_stopped_run_lists_unscored_jobs(recommender: TestClient) -> None:
+    llm = _llm(RuntimeError("unexpected failure scoring this job"))
+    recommender_app.dependency_overrides[recommender_llm] = lambda: llm
+    with respx.mock:
+        _mock_services({"postings": [_POSTING], "stopped": "Stopped by you."})
+        run_id = _start(recommender)
+        body = _wait(recommender, run_id)
+    assert body["results"] == []
+    assert [p["company"] for p in body["unscored_postings"]] == ["Acme"]
+
+
+def test_estimate_respects_caps_and_deep_search(recommender: TestClient) -> None:
+    plan = {"boards": 0, "adzuna": 0, "websites": 10, "careers_pages_to_find": 10}
+    with respx.mock:
+        respx.post("http://localhost:8001/search/plan").mock(
+            return_value=httpx.Response(200, json=plan)
+        )
+        base = {"query": {"role": "x", "job_type": "y", "max_results": 10},
+                "search_company_sites": True}
+        normal = recommender.post("/estimate", json=base).json()
+        deep_blocked = recommender.post("/estimate", json={**base, "deep_search": True}).json()
+        deep = recommender.post("/estimate", json={
+            **base, "deep_search": True, "company_budget_usd": 1.0, "budget_usd": 2.0}).json()
+    assert normal["high_usd"] == deep_blocked["high_usd"] < 1.0  # $0.20 cap: no web search
+    assert deep["high_usd"] == 2.0  # capped by the run limit
+
+
+
+# ---------------------------------------------------------------------------
+# Stop during the search → straight to scoring
+# ---------------------------------------------------------------------------
+
+
+class _StopDuringSearch:
+    """A web_scraper client whose search is 'stopped' by the user mid-way."""
+
+    def __init__(self, state: Any, postings: list[Any]) -> None:
+        self._state = state
+        self._postings = postings
+
+    async def search(self, *args: Any, **kwargs: Any) -> Any:
+        from jobassist.Microservices.job_recommender.clients import SearchResult
+
+        self._state.stop_requested = True  # the user pressed Stop while searching
+        return SearchResult(postings=self._postings, stopped="Stopped by you.")
+
+
+class _PassThroughCleaner:
+    async def dedupe(self, postings: list[Any]) -> list[Any]:
+        return postings
+
+
+@pytest.mark.asyncio
+async def test_stop_during_search_still_scores_found_jobs() -> None:
+    from jobassist.Microservices.job_recommender.models import JobPosting
+    from jobassist.Microservices.job_recommender.orchestration.pipeline import (
+        PipelineOptions,
+        RunState,
+        run_pipeline,
+    )
+    from jobassist.Microservices.job_recommender.persistence.store import Store
+
+    postings = [JobPosting.model_validate({**_POSTING, "company": c}) for c in ("A", "B")]
+    state = RunState()
+    llm = _llm(_reply(_SCORE, _usage(1000, 100)), _reply(_SCORE, _usage(1000, 100)))
+    await run_pipeline(
+        PipelineOptions(query=JobQuery(role="x", job_type="y"), resume="CV"),  # type: ignore[arg-type]
+        llm,
+        _StopDuringSearch(state, postings),  # type: ignore[arg-type]
+        _PassThroughCleaner(),  # type: ignore[arg-type]
+        Store(":memory:"),
+        state,
+    )
+    assert state.state == "done"
+    assert [r.posting.company for r in state.results] == ["A", "B"]
+    assert state.unscored == 0
+    assert state.stop_reason == "Search stopped by you — scored the 2 jobs found so far."

@@ -1,0 +1,20 @@
+# JobAssist employer list — one company per line.
+# A line ending with ":" starts a group. Put Y or * after a company to star it.
+# Optional: a careers page link after the company name. Lines starting with # are ignored.
+# Paste this into "Make an employer list" on the JobAssist page, or edit it first.
+
+University: Leeds
+
+London tech:
+Monzo, Y
+Ocado Technology *
+Spotify
+
+Finance:
+Barclays
+Lloyds Banking Group, Y
+Bank of England
+
+Consulting:
+Accenture
+Made Tech, https://www.madetech.com/careers/
