@@ -86,8 +86,9 @@ if grep -rIlE "sk-ant-[A-Za-z0-9_-]{20,}" "$OUT" >/dev/null 2>&1; then
   echo "Refusing to package — an Anthropic API key was found in the files."; exit 1
 fi
 
-# ditto keeps the Mac program executable inside the zip; Windows unzips it normally.
-(cd "$DIST" && ditto -c -k --keepParent JobAssist JobAssist.zip)
+# ditto keeps the Mac program executable; --norsrc --noextattr leaves out the hidden "._" files
+# Mac metadata would otherwise add (they look like broken copies of the programs on Windows).
+(cd "$DIST" && ditto -c -k --norsrc --noextattr --keepParent JobAssist JobAssist.zip)
 echo
 echo "Built:"
 echo "  $OUT/"
